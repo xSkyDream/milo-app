@@ -807,7 +807,7 @@ async function ask(q){q=String(q||'').trim();if(!q||thinking)return;stopSpeak();
       const sm=splitMood(r.text.split(/\n\s*\n(?=\s*\[\w+\])/).pop());a={k:sm.k||'face',t:sm.t.trim()+(r.truncated?' …':'')}}
     catch(e){const c=e&&e.code;
       if(c==='cancelled'){a=streamText?{k:'face',t:splitMood(streamText).t+' …'}:null}
-      else if(['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed','tools_unavailable'].includes(c)){AI.off=true;a=miloAnswer(q);a.t+='\n\n(Mode simple : l’IA n’est pas autorisée sur cette page.)'}
+      else if(['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed','tools_unavailable'].includes(c)){AI.off=true;a=miloAnswer(q);a.t+='\n\n(Mode simple : l’assistant intelligent n’est pas disponible pour le moment.)'}
       else if(c==='rate_limited'){a={k:'fatigue',t:'J’ai besoin d’une petite pause, trop de messages d’un coup. Réessaie dans un moment.'}}
       else if(c==='refused'){a={k:'face',t:'Je préfère ne pas répondre à ça. Parlons de ta récupération ?'}}
       else {a=e&&e.text?{k:'face',t:splitMood(e.text).t+' (réponse interrompue)'}:miloAnswer(q)}}
