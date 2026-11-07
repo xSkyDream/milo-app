@@ -1,0 +1,7 @@
+{
+  "name": "milo-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Milo, compagnon de convalescence (PWA) avec voix ElevenLabs et assistant Claude"
+}
