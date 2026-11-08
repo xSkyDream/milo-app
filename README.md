@@ -6,6 +6,7 @@ Application web installable (PWA) : traitements, soins, calendrier, progression,
 ## Structure
 ```
 public/          site statique (index.html + mascottes, icônes, manifeste PWA)
+public/games/    Milo Games : milo-games.js (hub + moteur commun), crush.js, blocks.js
 api/chat.js      relais vers Gemini (intelligence de Milo, avec outils)
 vercel.json      configuration Vercel
 ```
@@ -38,3 +39,10 @@ Sans `GEMINI_API_KEY`, l'app fonctionne quand même : Milo répond avec ses rép
 - **Résumé glissant** : au-delà de 40 messages, les 20 plus anciens sont résumés dans un carnet de suivi et restent connus de Milo.
 - **Souvenirs** : Milo enregistre ce que tu lui confies de durable (douleurs, sommeil, moral, habitudes) et les met à jour quand ils changent. Bouton ✦ en haut du chat pour les consulter ou les supprimer.
 - Tout est stocké dans le navigateur du téléphone.
+
+## Milo Games
+- **Milo Crush** : match-3 à niveaux infinis générés à partir du numéro de niveau (formes de grille, objectifs score / collecte / gelée / glaçons, difficulté progressive). Milo rayés, bombes et arc-en-ciel, combos entre spéciaux.
+- **Milo Blocks** : grille 8×8, glisser-déposer, lignes et colonnes, combos, plateau nettoyé, records.
+- Sauvegarde automatique après chaque coup (niveau atteint, étoiles, records, statistiques, partie en cours).
+- **Changer les bonbons** : déposer les images dans `public/assets/games/` et modifier la liste `PIECES` en haut de `public/games/crush.js`.
+- **Ajouter un jeu** : créer `public/games/mon-jeu.js` qui appelle `MiloGames.register({ id, name, logo, card(), mount(), unmount() })`, puis l'inclure dans `index.html`.
