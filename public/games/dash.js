@@ -19,7 +19,8 @@
   const T_AIR = 2 * PH.V0 / PH.G;
 
   /* ---------- Visuels de Milo (remplaçables) ---------- */
-  const RUN = { src: 'jump/run.webp', n: 8, fw: 364, fh: 300, ax: 0.585, ay: 0.95 };
+  const RUN = { src: 'jump/run.webp', n: 12, fw: 242, fh: 264, ax: 0.55, ay: 0.977 };
+  const LIFT = [0, 0.6, 2.6, 3.4, 1.2, 0, 0, 0.6, 2.6, 3.4, 1.8, 0], SQ = [1, 1, 1.015, 1.025, 0.965, 0.99, 1, 1, 1.015, 1.025, 0.97, 0.99]; // rebond / étirement par image (pour 98 de haut)
   const FLY = { vol: ['flap/vol.webp', 0.61, 0.583], haut: ['flap/haut.webp', 0.59, 0.607], bas: ['flap/bas.webp', 0.575, 0.592], ko: ['flap/etourdi.webp', 0.591, 0.603] };
   const PCOL = { ship: '#ff5fd2', cube: '#46f2a0', flip: '#ffd84d', norm: '#55c8ff', s0: '#ffa94d', s1: '#55c8ff', s2: '#7dff6a', s3: '#ff4f8b' };
   const SKINS = [
@@ -523,8 +524,10 @@
     c.setTransform(1, 0, 0, 1, sx, sy); if (s.gs < 0) c.scale(1, -1);
     if (s.mode === 0) {
       const im = IMG.run; if (!im || !im.ok) { c.setTransform(1, 0, 0, 1, 0, 0); return; }
-      const f = s.ground ? Math.floor(R.runPh) % RUN.n : (s.vy * s.gs > 0 ? 2 : 5), H = 1.3 * K, Wd = H * RUN.fw / RUN.fh;
-      c.rotate(R.rot); c.scale(R.sx, R.sy);
+      const H = 1.3 * K, Wd = H * RUN.fw / RUN.fh; let f, bob = 0, sq = 1;
+      if (s.ground) { const ph = R.runPh % RUN.n, fr = ph - Math.floor(ph); f = Math.floor(ph); const nx = (f + 1) % RUN.n; bob = (LIFT[f] + (LIFT[nx] - LIFT[f]) * fr) * H / 98; sq = SQ[f] + (SQ[nx] - SQ[f]) * fr; }
+      else f = s.vy * s.gs > 0 ? 3 : 10;
+      c.translate(0, -bob); c.rotate(R.rot); c.scale(R.sx * (2 - sq), R.sy * sq);
       c.drawImage(im, f * RUN.fw, 0, RUN.fw, RUN.fh, -RUN.ax * Wd, 0.5 * K - RUN.ay * H, Wd, H);
     } else {
       const key = s.hold ? (Math.floor(R.flap * 12) % 2 ? 'haut' : 'bas') : 'vol', im = IMG[key];
@@ -552,7 +555,7 @@
   function animMilo(S, dt) {
     const s = S.sim, R = S.R, cols = skinCols(S.t);
     if (s.mode === 0) {
-      if (s.ground) { R.runPh += dt * 17; const tg = Math.round(R.rot / 6.2832) * 6.2832; R.rot += (tg - R.rot) * (1 - Math.exp(-dt * 28)); }
+      if (s.ground) { R.runPh += dt * (S.menu ? 18 : 13 + SPEEDS[s.spd]); const tg = Math.round(R.rot / 6.2832) * 6.2832; R.rot += (tg - R.rot) * (1 - Math.exp(-dt * 28)); }
       else if (R.spin) R.rot += R.rate * dt;
       else R.rot += (0.18 - R.rot) * (1 - Math.exp(-dt * 6));
     } else { R.rot = 0; R.flap += dt; }
@@ -613,7 +616,7 @@
     const s = st.sim, L = st.L;
     st.t += dt;
     if (st.deadT >= 0) { st.deadT += dt; if (st.R.ko) { const k = st.R.ko; k.vy -= 30 * dt; k.x += k.vx * dt; k.y += k.vy * dt; k.r += k.vr * dt; } if (st.deadT > (st.practice ? 0.6 : 0.75)) startAttempt(); return; }
-    if (st.wonT >= 0) { st.wonT += dt; s.x += SPEEDS[s.spd] * dt; s.t += dt; Music.update(s.t); if (s.mode === 0) { s.ground = true; s.y = Math.max(0.5, s.y - 6 * dt); } st.R.runPh += dt * 17; if (st.wonT > 1.5 && !st.winShown) showWin(); return; }
+    if (st.wonT >= 0) { st.wonT += dt; s.x += SPEEDS[s.spd] * dt; s.t += dt; Music.update(s.t); if (s.mode === 0) { s.ground = true; s.y = Math.max(0.5, s.y - 6 * dt); } if (st.wonT > 1.5 && !st.winShown) showWin(); return; }
     let guard = 0; const step = PH.DT * 1000;
     while (st.simReal + step <= now && guard++ < 160) {
       while (st.inQ.length && st.inQ[0].ts <= st.simReal + step) { const e = st.inQ.shift(); if (e.down) s.press(); else s.release(); }
@@ -814,7 +817,7 @@
       else if (state === 'won') stepRun(now, dt);
       if (state === 'play' || state === 'won') { animMilo(st, dt); updFx(st, dt); if (st.wonT < 0) st.camX = st.sim.x - V.px; const ty = camTarget(st.sim); st.camY += (ty - st.camY) * (1 - Math.exp(-dt * 4.5)); }
     } else {
-      S.t += dt; S.sim.x += 5 * dt; S.sim.t = S.t; S.camX = S.sim.x - V.px; S.R.runPh += dt * 17; animMilo(S, dt); updFx(S, dt);
+      S.t += dt; S.sim.x += 5 * dt; S.sim.t = S.t; S.camX = S.sim.x - V.px; animMilo(S, dt); updFx(S, dt);
     }
     draw(S);
   }
@@ -935,7 +938,7 @@
   .dh-sk.on{border-color:#7fe3ff;box-shadow:0 0 16px rgba(127,227,255,.5)}
   .dh-sk b{font-size:15px;font-weight:900}.dh-sk small{font-size:11.5px;font-weight:800;color:rgba(255,255,255,.65);text-align:center}
   .dh-sk-art{position:relative;width:96px;height:96px;border-radius:50%;display:grid;place-items:center}
-  .dh-sk-milo{width:86px;height:71px;background:url(${MG.asset(RUN.src)}) 0 0/800% 100% no-repeat;animation:dhrun .5s steps(8) infinite}
+  .dh-sk-milo{width:72px;height:79px;background:url(${MG.asset(RUN.src)}) 0 0/1200% 100% no-repeat;animation:dhrun .6s steps(12) infinite}
   .dh-sk.locked .dh-sk-milo{filter:grayscale(1) brightness(.6)}
   .dh-sk-lock{position:absolute;right:2px;bottom:2px;width:30px;height:30px;border-radius:50%;background:rgba(10,5,38,.9);display:grid;place-items:center}.dh-sk-lock .gi{width:16px;height:16px}
   .dh-pauseov{position:absolute;inset:0;z-index:7;display:none;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:24px;background:rgba(8,4,30,.55);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);text-align:center}
@@ -954,8 +957,8 @@
   .gcard.dash .gcard-art{background:radial-gradient(circle at 70% 25%,rgba(255,79,210,.45),transparent 50%),linear-gradient(180deg,#120838 0%,#2a0f63 70%,#0d0630 70%)}
   .gcard.dash .gcard-art:after{content:"";position:absolute;left:0;right:0;bottom:30%;height:3px;background:#6ee7ff;box-shadow:0 0 12px #6ee7ff}
   .gcard.dash .gcard-art img{position:relative;z-index:1;margin-left:28%}
-  .dh-cmilo{position:absolute;left:5%;bottom:calc(30% - 2px);width:96px;height:79px;z-index:2;background:url(${MG.asset(RUN.src)}) 0 0/800% 100% no-repeat;animation:dhrun .45s steps(8) infinite;filter:drop-shadow(0 0 10px rgba(140,100,255,.9))}
-  @keyframes dhrun{to{background-position:114.2857% 0}}
+  .dh-cmilo{position:absolute;left:5%;bottom:calc(30% - 2px);width:78px;height:85px;z-index:2;background:url(${MG.asset(RUN.src)}) 0 0/1200% 100% no-repeat;animation:dhrun .55s steps(12) infinite;filter:drop-shadow(0 0 10px rgba(140,100,255,.9))}
+  @keyframes dhrun{to{background-position:109.0909% 0}}
   @media (prefers-reduced-motion:reduce){.dh-logo,.dh-hint,.dh-cmilo,.dh-sk-milo{animation:none}}
   `;
   const stl = document.createElement('style'); stl.textContent = css; document.head.appendChild(stl);

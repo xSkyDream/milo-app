@@ -43,7 +43,8 @@ Sans `GEMINI_API_KEY`, l'app fonctionne quand même : Milo répond avec ses rép
 ## Milo Games
 - **Milo Crush** : match-3 à niveaux infinis générés à partir du numéro de niveau (formes de grille, objectifs score / collecte / gelée / glaçons, difficulté progressive). Milo rayés, bombes et arc-en-ciel, combos entre spéciaux.
 - **Milo Blocks V2** : grille 8×8 de « gommes » pastel à symboles, plateau-coussin clair, animations de prise / pose / destruction, faisceaux sur les lignes, combos, Milo qui réagit sur le plateau, écran d'accueil, sons.
-- **Milo Jump** : course infinie inspirée du Dino de Chrome. Touche pour sauter, maintiens pour sauter plus haut ; cactus, rochers, buissons, barrières et trous ; étoiles et bulle-pansement ; passage jour / nuit tous les 700 points ; classement des 10 meilleurs scores.
+- **Milo Jump** : course infinie inspirée du Dino de Chrome. Touche pour sauter, maintiens pour sauter plus haut ; cactus, rochers, buissons, barrières en bois, pics et trous ; étoiles et bulle-pansement ; décor ciel, nuages, montagnes, collines et sol herbe / briques (jour / nuit tous les 700 points) ; classement des 10 meilleurs scores.
+- **Course de Milo** (Jump et Dash) : `public/assets/games/jump/run.webp`, planche de 12 images (deux foulées) détourée depuis le visuel officiel, alignée sur le sol ; cadence calée sur la vitesse, rebond et étirement image par image, poussière aux appuis.
 - **Sons** : synthétisés en Web Audio dans `milo-games.js` (`MiloGames.sfx`), aucun fichier audio, bouton muet mémorisé.
 - **Milo Flap** : tapoter pour voler entre les poteaux. Partie infinie, vitesse et difficulté progressives, poteaux mobiles, cycle jour / coucher de soleil / nuit tous les 25 passages, médailles (10, 25, 50, 100), poteau doré au niveau du record. Rendu canvas 60 FPS.
 - Sauvegarde automatique après chaque coup (niveau atteint, étoiles, records, statistiques, partie en cours).
