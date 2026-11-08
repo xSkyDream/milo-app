@@ -919,7 +919,7 @@ function accForm(mode){accMode=mode||accMode;const su=accMode==='signup';
   <div id="a_msg" class="tiny" style="margin-top:8px;min-height:16px;color:#c0392b"></div>
   <div class="actions"><button class="btn full" type="submit">${su?ic('sparkles')+'Créer mon compte':ic('check')+'Se connecter'}</button></div>
   ${su?'':'<button type="button" class="link" data-act="accForgot" style="margin-top:6px">Mot de passe oublié ?</button>'}</form>
-  <p class="tiny" style="margin-top:12px">${ic('shield-check')} Tes données sont privées : toi seul peux les lire.</p>`,{face:'clin'});
+  <p class="tiny" style="margin-top:12px">${ic('shield-check')} Tes données sont privées : toi seul peux les lire.${su?' En créant un compte, tu acceptes la':''} <a href="/confidentialite" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">${su?'politique de confidentialité':'Confidentialité'}</a>.</p>`,{face:'clin'});
   document.getElementById('f').onsubmit=async e=>{e.preventDefault();const em=val('a_e'),pw=document.getElementById('a_p').value,msg=document.getElementById('a_msg');
     if(pw.length<8){msg.textContent='Le mot de passe doit faire au moins 8 caractères.';return}msg.style.color='var(--muted)';msg.textContent='Un instant…';
     try{if(su){const name=val('a_n');const {data,error}=await ACC.sb.auth.signUp({email:em,password:pw,options:{emailRedirectTo:location.origin+location.pathname,data:name?{full_name:name}:{}}});if(error)throw error;
