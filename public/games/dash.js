@@ -840,7 +840,7 @@
   function skinsHTML() {
     const d = api.data;
     const tiles = SKINS.map((sk) => {
-      const open = skinOpen(sk), on = d.skin === sk.id, bg = sk.c ? `radial-gradient(circle at 50% 55%,${rgba(sk.c[0], 0.85)},${rgba(sk.c[1], 0.25)} 62%,transparent 72%)` : 'radial-gradient(circle at 50% 55%,rgba(255,255,255,.28),transparent 70%),conic-gradient(from 30deg,rgba(255,79,109,.45),rgba(255,225,77,.45),rgba(93,255,138,.45),rgba(79,210,255,.45),rgba(155,107,255,.45),rgba(255,79,109,.45))';
+      const open = skinOpen(sk), on = d.skin === sk.id, bg = !open ? 'radial-gradient(circle at 50% 50%,rgba(150,130,255,.16),rgba(150,130,255,.04) 65%,transparent 72%)' : sk.c ? `radial-gradient(circle at 50% 55%,${rgba(sk.c[0], 0.85)},${rgba(sk.c[1], 0.25)} 62%,transparent 72%)` : 'radial-gradient(circle at 50% 55%,rgba(255,255,255,.28),transparent 70%),conic-gradient(from 30deg,rgba(255,79,109,.45),rgba(255,225,77,.45),rgba(93,255,138,.45),rgba(79,210,255,.45),rgba(155,107,255,.45),rgba(255,79,109,.45))';
       return `<button class="dh-sk ${open ? '' : 'locked'} ${on ? 'on' : ''}" data-dh="skin" data-sk="${sk.id}" ${open ? '' : 'aria-disabled="true"'}>
         <span class="dh-sk-art" style="background:${bg}"><i class="dh-sk-tr" style="background:${trailCss(sk)}"></i><i class="dh-sk-milo" style="background-image:url(${MG.asset(sk.src)})"></i>${open ? '' : `<span class="dh-sk-lock">${MG.icon('lock')}</span>`}</span>
         <b>${sk.name}</b><small>${on ? 'Choisi' : open ? 'Toucher pour choisir' : sk.how}</small></button>`;
@@ -1042,10 +1042,10 @@
   .dh-sk-art{position:relative;width:96px;height:96px;border-radius:50%;display:grid;place-items:center}
   .dh-sk-milo{position:relative;z-index:1;width:94px;height:75px;margin-left:8px;background-position:0 0;background-size:1100% 100%;background-repeat:no-repeat;animation:dhsk .55s steps(11) infinite}
   .dh-sk-tr{position:absolute;left:-4px;top:42%;width:62px;height:16px;border-radius:16px;filter:blur(2.5px);opacity:.9;transform-origin:100% 50%;animation:dhtr .5s ease-in-out infinite alternate}
-  .dh-sk.locked .dh-sk-tr{opacity:.25;filter:blur(2.5px) grayscale(1)}
+  .dh-sk.locked .dh-sk-tr{display:none}
   @keyframes dhsk{to{background-position:110% 0}}
   @keyframes dhtr{to{transform:scaleX(.82) translateY(2px)}}
-  .dh-sk.locked .dh-sk-milo{filter:grayscale(1) brightness(.6)}
+  .dh-sk.locked .dh-sk-milo{filter:brightness(0) drop-shadow(0 0 1.5px rgba(200,185,255,.55));animation-play-state:paused}
   .dh-sk-lock{position:absolute;right:2px;bottom:2px;width:30px;height:30px;border-radius:50%;background:rgba(10,5,38,.9);display:grid;place-items:center}.dh-sk-lock .gi{width:16px;height:16px}
   .dh-pauseov{position:absolute;inset:0;z-index:7;display:none;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:24px;background:rgba(8,4,30,.55);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);text-align:center}
   .dh-root[data-state=paused] .dh-pauseov{display:flex}
