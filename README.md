@@ -6,7 +6,7 @@ Application web installable (PWA) : traitements, soins, calendrier, progression,
 ## Structure
 ```
 public/          site statique (index.html + mascottes, icônes, manifeste PWA)
-public/games/    Milo Games : milo-games.js (hub + moteur commun), crush.js, blocks.js, flap.js, jump.js, melon-data.js (catalogue) + melon.js
+public/games/    Milo Games : milo-games.js (hub + moteur commun), crush.js, blocks.js, flap.js, jump.js, melon-data.js (catalogue) + melon.js, dash-levels.js (niveaux) + dash.js
 api/chat.js      relais vers Gemini (intelligence de Milo, avec outils)
 vercel.json      configuration Vercel
 ```
@@ -50,6 +50,8 @@ Sans `GEMINI_API_KEY`, l'app fonctionne quand même : Milo répond avec ses rép
 - **Remplacer les visuels de Milo volant** : déposer les fichiers dans `public/assets/games/flap/` et ajuster la liste `SPRITES` en haut de `public/games/flap.js` (`ax` / `ay` = centre du corps dans l'image).
 - **Milo Melon** : jeu de fusion (principe Suika). Physique maison (Verlet sous-échantillonné), fusions en chaîne avec multiplicateur, alerte de débordement, partie sauvegardée et reprise, statistiques (parties, fusions, plus grosse mascotte, top 10).
 - **Mascottes de Milo Melon** : tout se règle dans `public/games/melon-data.js` (id, nom, taille, points, image, cercle du corps, poids d'apparition). Ajouter, retirer ou remplacer une mascotte ne demande aucune modification du moteur.
+- **Milo Dash** : plateforme rythmique néon (principe auto-run). Touche pour sauter, maintiens pour enchaîner ; orbes de saut, trampolines, portails (vol, gravité inversée, vitesses), scies. 4 niveaux (Envol, Pulsar, Gravité, Hyperdrive) avec musique synthétisée en direct calée sur le tempo, progression en %, record par niveau, 3 étoiles par niveau (gardées seulement si le niveau est terminé), déblocage progressif des niveaux, 6 personnages (aura et traînée) à débloquer, mode entraînement avec points de contrôle. Simulation déterministe à 240 Hz : les appuis tactiles sont horodatés et appliqués au bon pas de simulation.
+- **Niveaux de Milo Dash** : `public/games/dash-levels.js`. Les objets se placent en temps musicaux (`B.spikes(t)` = « saute sur le temps t »). Après toute modification, valider avec le bot intégré : `MiloGames.byId.dash._debug.solve(MiloGames.byId.dash._debug.lvl(0))` doit renvoyer `ok: true` (le bot cherche une suite d'appuis qui termine le niveau).
 - **Animation de course de Milo (Jump)** : planche de 8 images `public/assets/games/jump/run.webp` générée depuis le visuel officiel ; constante `SHEET` en haut de `jump.js`.
 - **Changer les bonbons** : déposer les images dans `public/assets/games/` et modifier la liste `PIECES` en haut de `public/games/crush.js`.
 - **Ajouter un jeu** : créer `public/games/mon-jeu.js` qui appelle `MiloGames.register({ id, name, logo, card(), mount(), unmount() })`, puis l'inclure dans `index.html`.

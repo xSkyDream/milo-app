@@ -92,6 +92,8 @@
         if (SND.ctx.state === 'suspended') SND.ctx.resume();
       } catch (e) {}
     },
+    ctx() { return SND.ctx && SND.ctx.state === 'running' ? SND.ctx : null; },
+    out() { return SND.out; },
     play(name, o) { if (!SND.ctx || SND.ctx.state !== 'running' || MG.sfx.muted) return; const f = RECIPES[name]; if (f) try { f(o || {}); } catch (e) {} },
     toggle() { const p = sndPrefs(); p.muted = !p.muted; MG.persist(); document.querySelectorAll('[data-gsnd]').forEach((b) => { b.innerHTML = MG.icon(p.muted ? 'mute' : 'sound'); b.setAttribute('aria-pressed', p.muted ? 'true' : 'false'); }); if (!p.muted) { MG.sfx.unlock(); MG.sfx.play('tap'); } }
   };
