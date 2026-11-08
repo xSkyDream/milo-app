@@ -154,7 +154,7 @@
     const cards = MG.games.map((g) => {
       const c = g.card(MG.data(g.id));
       return `<article class="gcard ${g.theme || ''}">
-        <div class="gcard-art"><img src="${MG.asset(g.logo)}" alt="${g.name}" draggable="false"></div>
+        <div class="gcard-art"><img src="${MG.asset(g.logo)}" alt="${g.name}" draggable="false">${c.art || ''}</div>
         <div class="gcard-body">
           <p class="gcard-desc">${c.desc}</p>
           <div class="gstats">${c.stats.map(([l, v, i]) => `<div><span>${i ? MG.icon(i) : ''}${l}</span><b>${v}</b></div>`).join('')}</div>
@@ -166,7 +166,7 @@
       <div class="ghub-hero">
         <div class="grow"><div class="ghub-eyebrow">${MG.icon('pad')}La salle de jeux</div>
           <h2>Une petite partie pendant que tu te reposes ?</h2>
-          <p>${t.sessions ? `Tu as lancé ${MG.fmt(t.sessions)} partie${t.sessions > 1 ? 's' : ''}. Tes progrès sont sauvegardés automatiquement.` : 'Deux jeux, des progrès sauvegardés automatiquement. Joue à ton rythme, jambe au repos.'}</p></div>
+          <p>${t.sessions ? `Tu as lancé ${MG.fmt(t.sessions)} partie${t.sessions > 1 ? 's' : ''}. Tes progrès sont sauvegardés automatiquement.` : `${['Aucun', 'Un', 'Deux', 'Trois', 'Quatre', 'Cinq', 'Six', 'Sept', 'Huit'][MG.games.length] || MG.games.length} jeux, des progrès sauvegardés automatiquement. Joue à ton rythme, jambe au repos.`}</p></div>
         <img src="${A(MILO.n_rire || 'v3_heureux')}" alt="" draggable="false">
       </div>
       <div class="ggrid">${cards}</div>
