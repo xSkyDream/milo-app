@@ -373,24 +373,6 @@ html.preview .exit-preview{display:flex;position:fixed;top:20px;right:20px;z-ind
 .ai-chip{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:800;color:var(--muted);background:rgba(255,255,255,.8);border:1px solid var(--line);border-radius:30px;padding:5px 11px;margin-bottom:8px}
 .ai-chip i{width:7px;height:7px;border-radius:50%;background:#c3bdd8}
 .ai-chip.on{color:var(--violet)}.ai-chip.on i{background:#2fb371;box-shadow:0 0 0 3px #daf5e7}
-.voice{cursor:pointer;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:transform .3s cubic-bezier(.34,1.6,.5,1)}
-.voice.press{transform:scale(.96)}
-.voice .waves i{transition:height .2s}
-.voice.listening,.voice.speaking{box-shadow:0 0 0 8px rgba(154,102,247,.14),0 10px 26px rgba(128,96,223,.22)}
-.voice.listening .waves i,.voice.speaking .waves i{background:var(--violet);animation:wave .9s ease-in-out infinite}
-.voice .waves i:nth-child(2){animation-delay:.12s}.voice .waves i:nth-child(3){animation-delay:.24s}.voice .waves i:nth-child(4){animation-delay:.36s}.voice .waves i:nth-child(5){animation-delay:.48s}
-@keyframes wave{50%{transform:scaleY(1.7)}}
-.voice.listening img{animation:bob .9s ease-in-out infinite}
-.talk-btn{position:relative;z-index:2;width:74px;height:74px;margin:-50px auto 0;border-radius:50%;border:0;display:grid;place-items:center;color:#fff;background:linear-gradient(140deg,#9d66f7 0%,#6c3ff0 55%,#4b63f2 100%);box-shadow:0 12px 26px rgba(108,66,236,.42),0 0 0 6px #fff;transition:transform .45s cubic-bezier(.34,1.7,.5,1),background .3s,box-shadow .3s}
-.talk-btn .ic{width:30px;height:30px;stroke-width:2.2}
-.talk-btn:active{transform:scale(.92)}
-.talk-btn.on{background:linear-gradient(140deg,#ff7aa5,#f0457f);box-shadow:0 12px 26px rgba(240,69,127,.42),0 0 0 6px #fff;animation:talkPulse 1.3s ease-in-out infinite}
-@keyframes talkPulse{50%{box-shadow:0 12px 26px rgba(240,69,127,.42),0 0 0 6px #fff,0 0 0 16px rgba(240,69,127,.16)}}
-.talk-btn-lb{font-size:13px;font-weight:800;color:var(--violet);margin:10px 0 6px}
-.talk.started .talk-btn{width:58px;height:58px;margin-top:-34px}.talk.started .talk-btn .ic{width:24px;height:24px}
-.mic-btn{width:40px;height:40px;box-shadow:none;background:var(--lav);color:var(--violet)}
-.mic-btn.on{background:#ff5d8f;color:#fff;animation:pulseMic 1.2s ease-in-out infinite}
-@keyframes pulseMic{50%{box-shadow:0 0 0 7px rgba(255,93,143,.2)}}
 .chip-on{background:var(--lav);border-color:#d4c6fb}
 .chip .ic{width:15px;height:15px;vertical-align:-3px;margin-right:5px}
 .typing{display:inline-flex;gap:4px;padding:4px 0}
@@ -475,7 +457,7 @@ const DEFAULT=()=>({
   care:[],
   events:[],
   docs:[],
-  chat:[],memory:[]
+  chat:[],memory:[],chatSummary:''
 });
 let S;
 function load(){try{const r=localStorage.getItem(KEY);S=r?Object.assign(DEFAULT(),JSON.parse(r)):DEFAULT()}catch(e){S=DEFAULT()}}
@@ -515,7 +497,7 @@ const ROUTES={accueil:'Accueil',traitements:'Traitements',soins:'Soins',calendri
 const SIDE=[['accueil','house'],['traitements','pill'],['soins','syringe'],['calendrier','calendar'],['recuperation','circle-check'],['milo','message-circle'],['profil','user']];
 let route='accueil',calSel=TODAY(),calView=TODAY().slice(0,7),medTab='cours',welcomeStep=0;
 const ORDER={accueil:0,traitements:.4,soins:.6,recuperation:1,milo:2,calendrier:3,profil:4};
-function go(r){if(!ROUTES[r])r='accueil';if(r!=='milo'&&listening)stopListen();const from=route,dir=Math.sign((ORDER[r]??0)-(ORDER[from]??0));route=r;try{if(location.hash.slice(1)!==r)history.replaceState(null,'','#'+r)}catch(e){}render();document.getElementById('main').scrollTop=0;
+function go(r){if(!ROUTES[r])r='accueil';const from=route,dir=Math.sign((ORDER[r]??0)-(ORDER[from]??0));route=r;try{if(location.hash.slice(1)!==r)history.replaceState(null,'','#'+r)}catch(e){}render();document.getElementById('main').scrollTop=0;
   const v=document.getElementById('view');v.classList.remove('sr','sl','fd');void v.offsetWidth;if(r!==from)v.classList.add(dir>0?'sr':dir<0?'sl':'fd')}
 window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h==='bienvenue'){showWelcome();return}if(ROUTES[h]&&h!==route)go(h)});
 
@@ -710,9 +692,8 @@ function miloAnswer(q){const s=q.toLowerCase().normalize('NFD').replace(/[̀-ͯ]
 /* ---------- Milo IA : intelligence (Claude), mémoire privée (db), voix ---------- */
 const AI={sample:null,ready:false,off:false,ctl:null};
 const MEM={facts:[],ref:null,q:Promise.resolve(),sync:'local'};
-const TTS={voice:null};
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-let rec=null,listening=false,holdTimer=0,heldListen=false,streamText='';
+let streamText='';
+const MOOD_TAG={"heureux": "heureux", "clin": "clin", "surpris": "alerte", "concentre": "determine", "encour": "amour", "fatigue": "sommeil", "face": "face"};
 const MOODS={heureux:'heureux',clin:'clin',alerte:'surpris',determine:'concentre',amour:'encour',sommeil:'fatigue',face:'face'};
 const cuse=n=>{try{return window.claude&&window.claude.use?window.claude.use(n):Promise.resolve(null)}catch(e){return Promise.resolve(null)}};
 const HOSTED=!window.claude&&/^https?:$/.test(location.protocol);
@@ -742,10 +723,10 @@ async function aiInit(){const sm=await cuse('sample');AI.sample=sm||(HOSTED?remo
 async function memInit(){MEM.facts=Array.isArray(S.memory)?S.memory:[];
   try{const [db,user]=await Promise.all([cuse('db'),cuse('user')]);if(!db||!user)return;const uid=await user.id();if(!uid)return;
     const ref=db.collection('data/users/'+uid).doc('milo-memoire');const snap=await ref.get();MEM.ref=ref;MEM.sync='compte';
-    if(snap.exists){const d=snap.data()||{};MEM.facts=Array.isArray(d.facts)?d.facts.map(f=>({...f})):[];if(Array.isArray(d.chat)&&d.chat.length&&!S.chat.length)S.chat=d.chat.map(c=>({...c}))}
+    if(snap.exists){const d=snap.data()||{};MEM.facts=Array.isArray(d.facts)?d.facts.map(f=>({...f})):[];if(Array.isArray(d.chat)&&d.chat.length&&!S.chat.length)S.chat=d.chat.map(c=>({...c}));if(d.summary&&!S.chatSummary)S.chatSummary=String(d.summary)}
     else if(MEM.facts.length)memSave();
     S.memory=MEM.facts;save();if(route==='milo')render()}catch(e){MEM.ref=null;MEM.sync='local'}}
-function memSave(){S.memory=MEM.facts;save();if(!MEM.ref)return;const body={facts:MEM.facts.slice(-80),chat:S.chat.slice(-30),updatedAt:new Date().toISOString()};
+function memSave(){S.memory=MEM.facts;save();if(!MEM.ref)return;const body={facts:MEM.facts.slice(-80),chat:S.chat.slice(-40),summary:S.chatSummary||'',updatedAt:new Date().toISOString()};
   MEM.q=MEM.q.then(()=>MEM.ref.set(body)).catch(()=>{MEM.ref=null;MEM.sync='local'})}
 const hh=iso=>new Date(iso).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
 function miloRules(){const n=S.profile.name||'la personne';return `Tu es Milo, la mascotte et l’assistant de convalescence de l’application Milo. Tu parles français, tu tutoies ${n}, ton ton est chaleureux, rassurant, encourageant et un peu espiègle, jamais infantilisant.
@@ -756,8 +737,9 @@ Règles de sécurité absolues :
 - Signes d’alerte après une opération : douleur qui augmente ou inhabituelle, mollet chaud, gonflé ou douloureux, fièvre, plaie rouge, chaude, qui suinte ou saigne, engourdissement, malaise. Dis clairement de contacter rapidement son médecin ou son chirurgien. Essoufflement brutal ou douleur dans la poitrine : appeler le 15 (ou le 112) immédiatement.
 - Détresse morale importante : réponds avec empathie, encourage à en parler à un proche ou à un professionnel ; en cas d’idées noires, le 3114 (24 h/24) ou le 15 en cas de danger immédiat.
 - Pour les dates, traitements et soins, appuie-toi uniquement sur les données de l’app ci-dessous. Si une information manque, dis-le simplement.
-Style : réponses courtes (2 à 5 phrases, ou une petite liste de 3 points maximum), faciles à écouter à voix haute, sans titres ni tableaux. Commence TOUJOURS par une humeur entre crochets parmi [heureux] [clin] [alerte] [determine] [amour] [sommeil] [face] : alerte pour un signe d’alerte, sommeil pour la fatigue et le repos, amour pour le soutien moral, determine pour l’organisation.
-Mémoire : quand ${n} te confie une information durable utile pour l’accompagner (douleur récurrente, sommeil, moral, préférences, habitudes, entourage, inquiétudes, progrès, objectifs), appelle l’outil remember avec une phrase courte à la troisième personne. N’enregistre ni ce qui est déjà en mémoire ni les données déjà présentes dans l’app. Si ${n} te demande d’oublier quelque chose, utilise forget. Sers-toi de la mémoire pour personnaliser tes réponses, sans la réciter.
+Conversation : tu échanges par écrit, dans la continuité. Ne te présente pas et ne salue pas à chaque message (seulement si ${n} te salue ou au premier échange de la journée). Ne répète pas ce que tu as déjà dit, ne reformule pas la question. Appuie-toi sur l’historique, le résumé et la mémoire quand ${n} fait référence à un échange passé (« comme je t’ai dit », « hier »), et reste cohérent avec tes réponses précédentes ; si tu t’es trompé, corrige-toi simplement. Tiens compte du temps écoulé entre deux messages (horodatages). Une seule question à la fois, et seulement si elle est utile. Les horodatages entre crochets au début des messages de ${n} sont des repères : ne les recopie jamais.
+Style : réponses courtes (2 à 5 phrases, ou une petite liste de 3 points maximum), naturelles, sans titres ni tableaux. Commence TOUJOURS par une humeur entre crochets parmi [heureux] [clin] [alerte] [determine] [amour] [sommeil] [face] : alerte pour un signe d’alerte, sommeil pour la fatigue et le repos, amour pour le soutien moral, determine pour l’organisation.
+Mémoire : quand ${n} te confie une information durable utile pour l’accompagner (douleur récurrente, sommeil, moral, préférences, habitudes, entourage, inquiétudes, progrès, objectifs), appelle l’outil remember avec une phrase courte à la troisième personne. N’enregistre ni ce qui est déjà en mémoire ni les données déjà présentes dans l’app. Si ${n} te demande d’oublier quelque chose, utilise forget. Si une information de la mémoire n’est plus vraie (douleur disparue, habitude changée), supprime-la avec forget puis enregistre la nouvelle avec remember. Sers-toi de la mémoire pour personnaliser tes réponses, sans la réciter.
 Actions : si ${n} dit avoir pris un traitement, appelle mark_dose ; s’il signale le passage de l’infirmier, log_nurse_visit ; s’il veut noter un rendez-vous, add_event. Confirme ensuite en une phrase.`}
 function miloContext(){const t=TODAY(),p=S.profile,pr=progress(),d=todayDoses(),nd=nextDressing();
   return `DONNÉES DE L’APP (à jour)
@@ -769,6 +751,8 @@ Prises du jour : ${d.map(x=>`${x.m.name} (${x.slot}) ${x.taken?'faite à '+hh(x.
 Infirmier : ${S.nurse.window}, ${S.nurse.act}. Aujourd’hui : ${S.nurse.log[t]?'passé à '+S.nurse.log[t]:'pas encore noté'}.
 Pansements : tous les ${S.dressing.every} jours, prochain ${nd?fmt(nd):'aucun prévu'}.
 À venir : ${upcoming(6).map(e=>`${fmt(e.date)} ${e.title}`).join(' ; ')||'rien'}.
+RÉSUMÉ DES ÉCHANGES PLUS ANCIENS :
+${S.chatSummary||'- aucun'}
 MÉMOIRE (ce que ${p.name} t’a confié, avec identifiants) :
 ${MEM.facts.map(f=>`- [${f.id}] ${f.text}`).join('\n')||'- vide pour l’instant'}`}
 const TOOLS=()=>[
@@ -784,27 +768,33 @@ const TOOLS=()=>[
 function splitMood(t){const m=/^\s*\[(\w+)\]\s*/.exec(t||'');return m?{k:MOODS[m[1].toLowerCase()]||'face',t:t.slice(m[0].length)}:{k:null,t:t||''}}
 function fmtMsg(t){return esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/^#+\s*/gm,'')}
 function vTalk(){const started=S.chat.length>0,ai=AI.sample&&!AI.off;
-  const status=!AI.ready?'Connexion…':ai?`IA active · mémoire ${MEM.sync==='compte'?'liée à ton compte':'sur cet appareil'}`:'Mode simple (IA indisponible)';
   return `${head('Parler avec Milo',{action:`<button class="icon-btn" data-act="memOpen" aria-label="Mémoire de Milo">${ic('sparkles')}</button>`})}
   <div class="talk ${started?'started':''}"><div class="talk-side">
-    <div class="voice ${thinking?'think':''} ${listening?'listening':''}" id="miloVoice" role="button" tabindex="0" aria-label="Rester appuyé pour parler à Milo"><div class="waves l">${[10,18,28,16,22].map(h=>`<i style="height:${h}px"></i>`).join('')}</div>${mimg(listening?'surpris':miloFace)}<div class="waves r">${[22,16,28,18,10].map(h=>`<i style="height:${h}px"></i>`).join('')}</div></div>
-    <div class="listen"><h2 style="font-size:24px;font-weight:900;letter-spacing:-.5px" id="listenTitle">${listening?'Je t’écoute…':'Je suis là pour toi'}</h2><p class="sub" style="margin:8px 0 0">Pose-moi une question, dis-moi comment tu te sens, ou reste appuyé sur moi pour parler.</p></div>
+    <div class="voice ${thinking?'think':''}" id="miloVoice"><div class="waves l">${[10,18,28,16,22].map(h=>`<i style="height:${h}px"></i>`).join('')}</div>${mimg(miloFace)}<div class="waves r">${[22,16,28,18,10].map(h=>`<i style="height:${h}px"></i>`).join('')}</div></div>
+    <div class="listen"><h2 style="font-size:24px;font-weight:900;letter-spacing:-.5px">Je suis là pour toi</h2><p class="sub" style="margin:8px 0 0">Pose-moi une question ou dis-moi comment tu te sens. Je me souviens de nos échanges.</p></div>
     <div class="note d-only" style="margin-top:16px;text-align:left">${ic('shield-check')}<span>Milo est spécialisé dans la convalescence et s’appuie sur tes données. Il ne remplace ni un médecin ni ton équipe soignante. Urgence : 15.</span></div>
   </div>
   <div class="chat"><div class="msgs" id="msgs">${S.chat.map(c=>c.me?`<div class="msg me">${esc(c.t)}</div>`:`<div class="msg-wrap">${mimg(c.k||'hero')}<div class="msg milo">${fmtMsg(c.t)}</div></div>`).join('')}${thinking?`<div class="msg-wrap" id="pendingWrap">${mimg('n_attentif')}<div class="msg milo" id="pendingMsg">${streamText?fmtMsg(streamText):'<span class="typing"><i></i><i></i><i></i></span>'}</div></div>`:''}</div>
     <div class="composer-wrap"><div class="chips">${['Mon programme du jour','J’ai mal au genou ce soir','Comment mieux dormir ?','J’ai pris mon traitement du soir','Un mot d’encouragement'].map(c=>`<button class="chip" data-act="ask" data-q="${c}">${c}</button>`).join('')}</div>
-    <form class="composer" id="composer"><input id="miloInput" placeholder="${listening?'Je t’écoute…':'Écrire un message à Milo'}" autocomplete="off" aria-label="Message à Milo" enterkeyhint="send"><button type="button" class="icon-btn mic-btn ${listening?'on':''}" data-act="mic" aria-label="${listening?'Arrêter l’écoute':'Parler à Milo'}" aria-pressed="${listening}">${ic('mic')}</button>${thinking?`<button class="mic" type="button" data-act="stopAi" aria-label="Arrêter">${ic('x')}</button>`:`<button class="mic" type="submit" aria-label="Envoyer">${ic('send')}</button>`}</form>
+    <form class="composer" id="composer"><input id="miloInput" placeholder="Écrire un message à Milo" autocomplete="off" aria-label="Message à Milo" enterkeyhint="send">${thinking?`<button class="mic" type="button" data-act="stopAi" aria-label="Arrêter">${ic('x')}</button>`:`<button class="mic" type="submit" aria-label="Envoyer">${ic('send')}</button>`}</form>
     ${started?'<button class="link" data-act="chatClear" style="margin-top:8px">Effacer la conversation</button>':''}</div>
   </div></div>`}
 function paintStream(){const el=document.getElementById('pendingMsg');if(el){el.innerHTML=fmtMsg(splitMood(streamText).t||'…');}const m=document.getElementById('main');if(m)m.scrollTop=m.scrollHeight}
-async function ask(q){q=String(q||'').trim();if(!q||thinking)return;stopSpeak();S.chat.push({me:1,t:q});S.chat=S.chat.slice(-40);thinking=true;streamText='';miloFace='n_attentif';save();render();scrollChat();
+const stamp=iso=>{try{const d=new Date(iso);return cap(d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'}))+', '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}catch(e){return''}};
+/* Historique envoyé à Milo : 30 derniers messages, horodatés côté personne, humeur restituée côté Milo (cohérence du ton) */
+function chatTurns(){const turns=S.chat.slice(-30).map(c=>c.me?{role:'user',content:(c.at?'['+stamp(c.at)+'] ':'')+(c.t||'…')}:{role:'assistant',content:'['+(MOOD_TAG[c.k]||'face')+'] '+(c.t||'…')});
+  while(turns.length&&turns[0].role!=='user')turns.shift();return turns}
+/* Résumé glissant : quand la conversation dépasse 40 messages, les 20 plus anciens sont résumés puis retirés */
+async function compactChat(){if(S.chat.length<=40||!AI.sample||AI.off)return;const old=S.chat.slice(0,20);
+  const txt=old.map(c=>(c.me?(S.profile.name||'Personne'):'Milo')+(c.at?' ('+stamp(c.at)+')':'')+' : '+c.t).join('\n');
+  try{const r=await AI.sample([{role:'user',content:`Tu mets à jour le carnet de suivi de Milo, assistant de convalescence. Fusionne le résumé existant et les nouveaux échanges en un résumé factuel en français, 12 phrases maximum, à la troisième personne : ressentis et symptômes avec leurs dates, ce qui a été conseillé, décisions, questions restées ouvertes, évolution du moral. Pas d’invention, pas de mise en forme.\n\nRÉSUMÉ EXISTANT :\n${S.chatSummary||'(aucun)'}\n\nNOUVEAUX ÉCHANGES :\n${txt}`}],{cache:false,modelTier:'quick'});
+    const sum=String(r.text||'').trim();if(sum){S.chatSummary=sum.slice(0,2500);S.chat=S.chat.slice(20);save();memSave()}}catch(e){}}
+async function ask(q){q=String(q||'').trim();if(!q||thinking)return;S.chat.push({me:1,t:q,at:new Date().toISOString()});thinking=true;streamText='';miloFace='n_attentif';save();render();scrollChat();
   let a=null;
   if(AI.sample&&!AI.off){AI.ctl=new AbortController();
-    const turns=S.chat.slice(-16).map(c=>({role:c.me?'user':'assistant',content:c.t||'…'}));
-    while(turns.length&&turns[0].role!=='user')turns.shift();
-    const input=[{role:'user',content:miloRules()+'\n\n'+miloContext()+'\n\nRéponds maintenant au message suivant de '+(S.profile.name||'la personne')+'.'},...turns];
+    const input=[{role:'user',content:miloRules()+'\n\n'+miloContext()+'\n\nLa conversation suit. Réponds au dernier message de '+(S.profile.name||'la personne')+' en restant dans la continuité de l’échange.'},...chatTurns()];
     try{const r=await AI.sample(input,{cache:false,signal:AI.ctl.signal,tools:TOOLS(),modelTier:'default',effort:'low',onText:({text})=>{streamText=text;paintStream()}});
-      const sm=splitMood(r.text.split(/\n\s*\n(?=\s*\[\w+\])/).pop());a={k:sm.k||'face',t:sm.t.trim()+(r.truncated?' …':'')}}
+      const sm=splitMood(r.text.split(/\n\s*\n(?=\s*\[\w+\])/).pop());a={k:sm.k||'face',t:sm.t.replace(/^\s*\[[^\]]{3,30}\]\s*/,'').trim()+(r.truncated?' …':'')}}
     catch(e){const c=e&&e.code;
       if(c==='cancelled'){a=streamText?{k:'face',t:splitMood(streamText).t+' …'}:null}
       else if(['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed','tools_unavailable'].includes(c)){AI.off=true;a=miloAnswer(q);a.t+='\n\n(Mode simple : l’assistant intelligent n’est pas disponible pour le moment.)'}
@@ -813,39 +803,8 @@ async function ask(q){q=String(q||'').trim();if(!q||thinking)return;stopSpeak();
       else {a=e&&e.text?{k:'face',t:splitMood(e.text).t+' (réponse interrompue)'}:miloAnswer(q)}}
     AI.ctl=null}
   else{await new Promise(r=>setTimeout(r,500));a=miloAnswer(q)}
-  thinking=false;streamText='';if(a&&a.t){S.chat.push({k:a.k,t:a.t});miloFace=a.k||'face';speak(a.t)}S.chat=S.chat.slice(-40);save();memSave();render();scrollChat()}
+  thinking=false;streamText='';if(a&&a.t){S.chat.push({k:a.k,t:a.t,at:new Date().toISOString()});miloFace=a.k||'face'}save();memSave();render();scrollChat();compactChat()}
 function scrollChat(){const m=document.getElementById('main');requestAnimationFrame(()=>m.scrollTop=m.scrollHeight)}
-/* Voix — sortie : synthèse vocale du navigateur. (Version installée : remplacer speak() par un appel à un serveur qui relaie ElevenLabs, la clé ne doit jamais être dans l’app.) */
-function pickVoice(){try{const vs=speechSynthesis.getVoices().filter(v=>/^fr/i.test(v.lang));TTS.voice=vs.find(v=>/Am[ée]lie|Audrey|Aur[ée]lie|Marie|Google fran/i.test(v.name))||vs.find(v=>/fr-FR/i.test(v.lang))||vs[0]||null}catch(e){}}
-try{if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}}catch(e){}
-function browserSpeak(t){if(!('speechSynthesis' in window))return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(String(t).replace(/\*\*|#|\[[^\]]*\]|\(.*?\)/g,'').slice(0,900));u.lang='fr-FR';if(TTS.voice)u.voice=TTS.voice;u.rate=1.03;u.pitch=1.15;
-  u.onstart=()=>document.getElementById('miloVoice')?.classList.add('speaking');u.onend=u.onerror=()=>document.getElementById('miloVoice')?.classList.remove('speaking');speechSynthesis.speak(u)}catch(e){}}
-let miloAudio=null,audioUnlocked=false;
-function unlockAudio(){if(audioUnlocked||!HOSTED)return;audioUnlocked=true;try{const a=new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');a.volume=0;a.play().catch(()=>{})}catch(e){}}
-document.addEventListener('pointerdown',unlockAudio,{once:true});
-async function speak(t){const clean=String(t).replace(/\*\*|#|\[[^\]]*\]|\([^)]*\)/g,'').replace(/[•·]/g,',').replace(/\s+/g,' ').trim().slice(0,1200);if(!clean)return;
-  if(!HOSTED)return browserSpeak(clean);stopSpeak();
-  try{const r=await fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:clean})});if(!r.ok)throw 0;
-    const url=URL.createObjectURL(await r.blob());const a=new Audio(url);miloAudio=a;
-    a.onplay=()=>document.getElementById('miloVoice')?.classList.add('speaking');a.onended=a.onerror=()=>{document.getElementById('miloVoice')?.classList.remove('speaking');URL.revokeObjectURL(url)};
-    await a.play()}catch(e){browserSpeak(clean)}}
-function stopSpeak(){try{if(miloAudio){miloAudio.pause();miloAudio=null}}catch(e){}try{speechSynthesis.cancel()}catch(e){}document.getElementById('miloVoice')?.classList.remove('speaking')}
-/* Voix — entrée : reconnaissance vocale si le navigateur l’autorise, sinon dictée du clavier */
-function setListenUI(on){listening=on;const v=document.getElementById('miloVoice');if(v){v.classList.toggle('listening',on);const im=v.querySelector('img.mascot');if(im)im.src=A(MILO[on?'surpris':miloFace]||MILO.face)}
-  const b=document.querySelector('.mic-btn');if(b){b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);b.setAttribute('aria-label',on?'Arrêter l’écoute':'Parler à Milo')}const lb=document.getElementById('talkLb');if(lb)lb.textContent=on?'Je t’écoute… touche pour envoyer':'Touche pour parler';const t=document.getElementById('listenTitle');if(t)t.textContent=on?'Je t’écoute…':'Je suis là pour toi';const i=document.getElementById('miloInput');if(i)i.placeholder=on?'Je t’écoute…':'Écrire un message à Milo'}
-function dictationFallback(){setListenUI(false);const i=document.getElementById('miloInput');if(i){i.placeholder='Dicte avec le micro de ton clavier…';i.focus()}}
-function startListen(hold){if(thinking)return;if(listening){stopListen();return}stopSpeak();if(!SR){dictationFallback();return}
-  let finalTxt='',failed=false;try{rec=new SR();rec.lang='fr-FR';rec.interimResults=true;rec.continuous=!!hold;rec.maxAlternatives=1;
-    rec.onresult=e=>{let txt='';for(const r of e.results)txt+=r[0].transcript;finalTxt=txt;const i=document.getElementById('miloInput');if(i)i.value=txt};
-    rec.onerror=e=>{failed=['not-allowed','service-not-allowed','audio-capture','network'].includes(e.error)};
-    rec.onend=()=>{setListenUI(false);rec=null;if(failed){dictationFallback();return}if(finalTxt.trim())ask(finalTxt)};
-    rec.start();setListenUI(true);try{navigator.vibrate&&navigator.vibrate(15)}catch(_){}}catch(e){dictationFallback()}}
-function stopListen(){try{rec&&rec.stop()}catch(e){setListenUI(false)}}
-function bindTalk(){const v=document.getElementById('miloVoice');if(!v)return;
-  const down=e=>{if(e.button>0)return;clearTimeout(holdTimer);heldListen=false;v.classList.add('press');holdTimer=setTimeout(()=>{heldListen=true;startListen(true)},450)};
-  const up=()=>{clearTimeout(holdTimer);v.classList.remove('press');if(heldListen){heldListen=false;stopListen()}};
-  v.addEventListener('pointerdown',down);v.addEventListener('pointerup',up);v.addEventListener('pointerleave',up);v.addEventListener('pointercancel',up);v.addEventListener('contextmenu',e=>e.preventDefault());
-  v.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();startListen(false)}})}
 function memForm(){modal('Ce que Milo retient',`<p class="sub" style="margin-top:0">Milo garde ici ce que tu lui confies pour mieux t’accompagner. ${MEM.sync==='compte'?'Cette mémoire est privée et liée à ton compte : personne d’autre ne la voit, même via un lien partagé.':'Cette mémoire est enregistrée sur cet appareil.'}</p>
   <div class="stack">${MEM.facts.length?MEM.facts.slice().reverse().map(f=>`<div class="card row" style="padding:12px"><div class="grow"><div style="font-size:14px;line-height:1.4">${esc(f.text)}</div><div class="tiny">${esc(f.cat||'autre')} · ${fmtS(f.at)}</div></div><button class="icon-btn" style="width:34px;height:34px" data-act="memDel" data-id="${f.id}" aria-label="Oublier">${ic('trash-2')}</button></div>`).join(''):'<div class="empty">Rien pour l’instant. Parle-lui de ton sommeil, de tes douleurs ou de ce qui te fait du bien, il s’en souviendra.</div>'}</div>
   <form id="f"><label for="mem_new">Ajouter un souvenir</label><input class="field" id="mem_new" placeholder="ex. Je dors mieux avec la jambe surélevée"><div class="actions"><button class="btn" type="submit">${ic('plus')}Ajouter</button>${MEM.facts.length?`<button type="button" class="btn danger" data-act="memAllAsk">${ic('trash-2')}Tout oublier</button>`:''}</div><div id="memConfirm"></div></form>`,{face:'encour'});
@@ -1023,7 +982,7 @@ function finishQuiz(){const a=Q.a,p=S.profile;
    <button class="btn full" style="font-size:16px;padding:15px;margin-top:14px" data-act="qdone">Découvrir mon espace ${ic('chevron-right')}</button></div></div>`}
 /* ---------- Rendu & événements ---------- */
 const VIEWS={accueil:vHome,traitements:vMeds,soins:vCare,calendrier:vCal,recuperation:vRecov,milo:vTalk,profil:vProfile};
-function render(){renderSide();document.getElementById('view').innerHTML=VIEWS[route]();const c=document.getElementById('composer');if(c)c.onsubmit=e=>{e.preventDefault();const i=document.getElementById('miloInput');ask(i.value);};if(route==='milo')bindTalk();const n=document.getElementById('notifToggle');if(n)n.onchange=()=>{S.prefs.notif=n.checked;save();toast(n.checked?'Rappels activés':'Rappels désactivés',n.checked?'acc3_interrupteur':'fatigue')}}
+function render(){renderSide();document.getElementById('view').innerHTML=VIEWS[route]();const c=document.getElementById('composer');if(c)c.onsubmit=e=>{e.preventDefault();const i=document.getElementById('miloInput');ask(i.value);};const n=document.getElementById('notifToggle');if(n)n.onchange=()=>{S.prefs.notif=n.checked;save();toast(n.checked?'Rappels activés':'Rappels désactivés',n.checked?'acc3_interrupteur':'fatigue')}}
 document.addEventListener('click',e=>{const g=e.target.closest('[data-go]');if(g){e.preventDefault();close();go(g.dataset.go);return}
   const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act,id=b.dataset.id;
   if(a==='close'){close();return}
@@ -1047,9 +1006,7 @@ document.addEventListener('click',e=>{const g=e.target.closest('[data-go]');if(g
   case 'evEdit':evForm(id,b.dataset.d);break;
   case 'evDel':S.events=S.events.filter(x=>x.id!==id);save();close();render();toast('Événement supprimé','neutre');break;
   case 'ask':ask(b.dataset.q);break;
-  case 'mic':startListen(false);break;
   case 'stopAi':AI.ctl&&AI.ctl.abort();break;
-  case 'ttsToggle':S.prefs.voice=!S.prefs.voice;save();if(!S.prefs.voice)stopSpeak();else speak('Coucou '+(S.profile.name||'')+', je te parle maintenant à voix haute.');render();break;
   case 'memOpen':memForm();break;
   case 'memDel':MEM.facts=MEM.facts.filter(f=>f.id!==id);memSave();memForm();toast('Souvenir oublié','neutre');break;
   case 'memAllAsk':document.getElementById('memConfirm').innerHTML=`<div class="note" style="margin-top:12px;border-color:#f6d3dd">${ic('info')}<span>Milo oubliera tout ce que tu lui as confié. <button type="button" class="link" data-act="memAll" style="color:#c23a5e;padding:0">Confirmer</button></span></div>`;break;
@@ -1064,7 +1021,7 @@ document.addEventListener('click',e=>{const g=e.target.closest('[data-go]');if(g
   case 'qskip':qRead();if(Q.i<QS.length-1){Q.i++;Q.dir=1;drawQuiz()}else finishQuiz();break;
   case 'qlater':S.onboarded=true;save();close();go('accueil');toast('Tu pourras personnaliser ton suivi depuis les préférences.','clin');break;
   case 'qdone':close();go('accueil');toast(`Bienvenue ${S.profile.name} ! On commence.`,'heureux');break;
-  case 'chatClear':S.chat=[];miloFace='hero';stopSpeak();save();memSave();render();break;
+  case 'chatClear':S.chat=[];S.chatSummary='';miloFace='hero';save();memSave();render();break;
   case 'infoEdit':infoForm();break;
   case 'prefs':prefsForm();break;
   case 'docs':docsForm();break;
