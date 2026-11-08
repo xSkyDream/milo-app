@@ -6,7 +6,7 @@ Application web installable (PWA) : traitements, soins, calendrier, progression,
 ## Structure
 ```
 public/          site statique (index.html + mascottes, icônes, manifeste PWA)
-public/games/    Milo Games : milo-games.js (hub + moteur commun), crush.js, blocks.js, flap.js, cross.js (+ vendor/three.module.min.js, chargé seulement à l'ouverture de Milo Cross)
+public/games/    Milo Games : milo-games.js (hub + moteur commun), crush.js, blocks.js, flap.js, jump.js
 api/chat.js      relais vers Gemini (intelligence de Milo, avec outils)
 vercel.json      configuration Vercel
 ```
@@ -43,11 +43,11 @@ Sans `GEMINI_API_KEY`, l'app fonctionne quand même : Milo répond avec ses rép
 ## Milo Games
 - **Milo Crush** : match-3 à niveaux infinis générés à partir du numéro de niveau (formes de grille, objectifs score / collecte / gelée / glaçons, difficulté progressive). Milo rayés, bombes et arc-en-ciel, combos entre spéciaux.
 - **Milo Blocks V2** : grille 8×8 de « gommes » pastel à symboles, plateau-coussin clair, animations de prise / pose / destruction, faisceaux sur les lignes, combos, Milo qui réagit sur le plateau, écran d'accueil, sons.
-- **Milo Cross** : traversée en 3D (Three.js) de routes, rivières et 5 univers à débloquer (Ville, Campagne, Forêt, Plage, Montagne). Glisser pour se déplacer, rondins / nénuphars / bateaux / banquises, étoiles à collecter, records.
+- **Milo Jump** : course infinie inspirée du Dino de Chrome. Touche pour sauter, maintiens pour sauter plus haut ; cactus, rochers, buissons, barrières et trous ; étoiles et bulle-pansement ; passage jour / nuit tous les 700 points ; classement des 10 meilleurs scores.
 - **Sons** : synthétisés en Web Audio dans `milo-games.js` (`MiloGames.sfx`), aucun fichier audio, bouton muet mémorisé.
 - **Milo Flap** : tapoter pour voler entre les poteaux. Partie infinie, vitesse et difficulté progressives, poteaux mobiles, cycle jour / coucher de soleil / nuit tous les 25 passages, médailles (10, 25, 50, 100), poteau doré au niveau du record. Rendu canvas 60 FPS.
 - Sauvegarde automatique après chaque coup (niveau atteint, étoiles, records, statistiques, partie en cours).
 - **Remplacer les visuels de Milo volant** : déposer les fichiers dans `public/assets/games/flap/` et ajuster la liste `SPRITES` en haut de `public/games/flap.js` (`ax` / `ay` = centre du corps dans l'image).
-- **Remplacer les visuels de Milo dans Cross** : fichiers dans `public/assets/games/cross/` (liste `SPR` en haut de `cross.js`).
+- **Animation de course de Milo (Jump)** : planche de 8 images `public/assets/games/jump/run.webp` générée depuis le visuel officiel ; constante `SHEET` en haut de `jump.js`.
 - **Changer les bonbons** : déposer les images dans `public/assets/games/` et modifier la liste `PIECES` en haut de `public/games/crush.js`.
 - **Ajouter un jeu** : créer `public/games/mon-jeu.js` qui appelle `MiloGames.register({ id, name, logo, card(), mount(), unmount() })`, puis l'inclure dans `index.html`.
