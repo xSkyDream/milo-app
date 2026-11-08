@@ -70,7 +70,7 @@ Aucune clé dans le code : l'app lit sa configuration sur `/api/config`, qui ren
 1. **Créer le projet** sur supabase.com : *New project*, région **Europe (Paris ou Frankfurt)**.
 2. **Créer la table** : *SQL Editor* → coller le contenu de `supabase/schema.sql` → *Run*. Les règles RLS garantissent que chacun ne lit que ses propres données.
 3. **Adresses autorisées** : *Authentication → URL Configuration*
-   - *Site URL* : l'adresse Vercel de Milo (ex. `https://milo-app.vercel.app`)
+   - *Site URL* : l'adresse Vercel de Milo (ex. `https://milo-app-neon.vercel.app`)
    - *Redirect URLs* : la même adresse + `/**`
 4. **E-mail** : *Authentication → Providers → Email* activé (confirmation par e-mail conseillée). Les modèles d'e-mail peuvent être traduits en français dans *Authentication → Email Templates*.
 5. **Google** :
