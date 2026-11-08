@@ -36,8 +36,63 @@
     lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
     redo: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
     grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    sound: '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/>',
+    mute: '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/>',
+    pause: '<rect x="6" y="4" width="4" height="16" rx="1.2"/><rect x="14" y="4" width="4" height="16" rx="1.2"/>',
     pad: '<line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/>'
   };
+
+  /* ---------- Sons (Web Audio synthétisé : aucun fichier, volume discret) ---------- */
+  const SND = { ctx: null, out: null, noise: null };
+  const sndPrefs = () => MG.data('_reglages');
+  function tone(f, o) {
+    const ac = SND.ctx, t0 = ac.currentTime + (o.t || 0), d = o.d || 0.12, osc = ac.createOscillator(), g = ac.createGain();
+    osc.type = o.type || 'sine'; osc.frequency.setValueAtTime(f, t0); if (o.f2) osc.frequency.exponentialRampToValueAtTime(o.f2, t0 + d);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(o.v || 0.1, t0 + (o.a || 0.006)); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+    osc.connect(g); g.connect(SND.out); osc.start(t0); osc.stop(t0 + d + 0.03);
+  }
+  function noise(o) {
+    const ac = SND.ctx, t0 = ac.currentTime + (o.t || 0), d = o.d || 0.3;
+    if (!SND.noise) { const b = ac.createBuffer(1, ac.sampleRate, ac.sampleRate), x = b.getChannelData(0); for (let i = 0; i < x.length; i++) x[i] = Math.random() * 2 - 1; SND.noise = b; }
+    const src = ac.createBufferSource(), fl = ac.createBiquadFilter(), g = ac.createGain();
+    src.buffer = SND.noise; fl.type = o.type || 'lowpass'; fl.Q.value = o.q || 0.7;
+    fl.frequency.setValueAtTime(o.f || 1500, t0); if (o.f2) fl.frequency.exponentialRampToValueAtTime(o.f2, t0 + d);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(o.v || 0.1, t0 + (o.a || 0.01)); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+    src.connect(fl); fl.connect(g); g.connect(SND.out); src.start(t0, Math.random() * 0.5); src.stop(t0 + d + 0.05);
+  }
+  const NOTE = (s) => 523.25 * Math.pow(2, s / 12);
+  const RECIPES = {
+    pick: () => tone(640, { f2: 940, d: 0.07, v: 0.07 }),
+    place: (p) => { const k = 1 - Math.min(6, p.n || 0) * 0.03; tone(320 * k, { f2: 150 * k, d: 0.12, v: 0.15 }); tone(1400, { d: 0.03, v: 0.025, type: 'triangle' }); },
+    invalid: () => { tone(230, { f2: 190, d: 0.09, v: 0.06, type: 'triangle' }); tone(190, { f2: 150, t: 0.08, d: 0.1, v: 0.05, type: 'triangle' }); },
+    clear: (p) => { const n = Math.min(5, p.n || 1), up = Math.min(7, p.up || 0), sc = [0, 4, 7, 12, 16, 19]; for (let i = 0; i <= n; i++) tone(NOTE(sc[i] + up), { t: i * 0.05, d: 0.24, v: 0.075 }); tone(NOTE(sc[n] + 24 + up), { t: n * 0.05, d: 0.32, v: 0.03, type: 'triangle' }); noise({ d: 0.22, v: 0.035, f: 5000, f2: 2000, type: 'highpass' }); },
+    bigclear: () => { [0, 4, 7, 12, 16, 19, 24].forEach((s, i) => tone(NOTE(s), { t: i * 0.06, d: 0.36, v: 0.07 })); noise({ t: 0.3, d: 0.5, v: 0.04, f: 6000, f2: 2500, type: 'highpass' }); },
+    record: () => { [0, 4, 7, 12].forEach((s, i) => tone(NOTE(s), { t: i * 0.11, d: i === 3 ? 0.55 : 0.18, v: 0.08, type: 'triangle' })); tone(NOTE(28), { t: 0.4, d: 0.4, v: 0.025 }); },
+    over: () => [7, 4, 0, -5].forEach((s, i) => tone(NOTE(s - 12), { t: i * 0.15, d: 0.3, v: 0.07, type: 'triangle' })),
+    hop: () => tone(430 * (0.94 + Math.random() * 0.12), { f2: 680, d: 0.075, v: 0.055 }),
+    bonk: () => tone(170, { f2: 110, d: 0.11, v: 0.08, type: 'triangle' }),
+    star: () => { tone(NOTE(19), { d: 0.12, v: 0.06, type: 'triangle' }); tone(NOTE(24), { t: 0.07, d: 0.28, v: 0.06, type: 'triangle' }); },
+    splash: () => { noise({ d: 0.55, v: 0.16, f: 2600, f2: 260 }); tone(520, { f2: 120, d: 0.28, v: 0.05 }); },
+    crash: () => { noise({ d: 0.22, v: 0.14, f: 1800, f2: 200 }); tone(150, { f2: 60, d: 0.3, v: 0.14 }); tone(NOTE(24), { t: 0.15, d: 0.12, v: 0.03, type: 'triangle' }); tone(NOTE(28), { t: 0.24, d: 0.12, v: 0.03, type: 'triangle' }); },
+    honk: () => { tone(392, { d: 0.12, v: 0.035, type: 'square' }); tone(494, { d: 0.12, v: 0.03, type: 'square' }); },
+    whoosh: () => noise({ d: 0.32, v: 0.05, f: 600, f2: 3200, type: 'bandpass', q: 1.2 }),
+    unlock: () => { [0, 7, 12, 16, 19, 24].forEach((s, i) => tone(NOTE(s), { t: i * 0.07, d: 0.3, v: 0.06, type: 'triangle' })); },
+    tap: () => tone(900, { d: 0.035, v: 0.04, type: 'triangle' })
+  };
+  MG.sfx = {
+    get muted() { try { return !!sndPrefs().muted; } catch (e) { return false; } },
+    unlock() {
+      try {
+        if (!SND.ctx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return; SND.ctx = new C(); const comp = SND.ctx.createDynamicsCompressor(); SND.out = SND.ctx.createGain(); SND.out.gain.value = 0.6; SND.out.connect(comp); comp.connect(SND.ctx.destination); }
+        if (SND.ctx.state === 'suspended') SND.ctx.resume();
+      } catch (e) {}
+    },
+    play(name, o) { if (!SND.ctx || SND.ctx.state !== 'running' || MG.sfx.muted) return; const f = RECIPES[name]; if (f) try { f(o || {}); } catch (e) {} },
+    toggle() { const p = sndPrefs(); p.muted = !p.muted; MG.persist(); document.querySelectorAll('[data-gsnd]').forEach((b) => { b.innerHTML = MG.icon(p.muted ? 'mute' : 'sound'); b.setAttribute('aria-pressed', p.muted ? 'true' : 'false'); }); if (!p.muted) { MG.sfx.unlock(); MG.sfx.play('tap'); } }
+  };
+  MG.soundBtn = () => `<button class="gclose gsnd" data-gsnd aria-label="Activer ou couper le son" aria-pressed="${MG.sfx.muted}">${MG.icon(MG.sfx.muted ? 'mute' : 'sound')}</button>`;
+  ['pointerdown', 'touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, () => { if (MG.cur) MG.sfx.unlock(); }, { capture: true, passive: true }));
+  document.addEventListener('click', (e) => { if (e.target.closest('[data-gsnd]')) { e.preventDefault(); MG.sfx.toggle(); } });
 
   /* ---------- Particules ---------- */
   class FX {
@@ -174,7 +229,9 @@
   };
   MG.homeCard = function () {
     if (!MG.games.length) return '';
-    const lines = MG.games.map((g) => g.homeLine ? g.homeLine(MG.data(g.id)) : g.name).join(' · ');
+    const names = MG.games.map((g) => g.name.replace(/^Milo /, ''));
+    const recent = MG.games.slice().sort((a, b) => String(MG.data(b.id).lastPlayed || '').localeCompare(String(MG.data(a.id).lastPlayed || '')))[0];
+    const lines = `${MG.games.length} jeux : ${names.length > 1 ? names.slice(0, -1).join(', ') + ' et ' + names[names.length - 1] : names[0]}${recent && MG.data(recent.id).lastPlayed && recent.homeLine ? '<br>' + recent.homeLine(MG.data(recent.id)) : ''}`;
     return `<button class="card ghome" data-go="jeux">
       <div class="ghome-art">${MG.games.map((g) => `<img src="${MG.asset(g.logo)}" alt="" draggable="false">`).join('')}</div>
       <div class="grow"><div class="h-card">La salle de jeux</div><div class="tiny">${lines}</div></div>${ic('chevron-right', 'chev')}</button>`;
@@ -206,7 +263,7 @@
   .gprog{height:8px;border-radius:8px;background:var(--lav-2);overflow:hidden}.gprog i{display:block;height:100%;background:linear-gradient(90deg,#ff7eb3,#9b5cf6);border-radius:8px}
   .gplay{margin-top:auto}.gplay .gi{width:16px;height:16px;fill:currentColor}
   .ghome{width:100%;border:0;text-align:left;display:flex;align-items:center;gap:12px;margin-top:12px;background:linear-gradient(120deg,#fff,#f6f0ff)}
-  .ghome-art{display:flex;flex:none}.ghome-art img{width:52px;height:52px;object-fit:contain;filter:drop-shadow(0 4px 6px rgba(60,30,140,.2))}.ghome-art img+img{margin-left:-14px}
+  .ghome-art{display:flex;flex:none}.ghome-art img{width:50px;height:50px;object-fit:contain;filter:drop-shadow(0 4px 6px rgba(60,30,140,.2))}.ghome-art img+img{margin-left:-24px}
   @container app (max-width:760px){.ggrid{grid-template-columns:minmax(0,1fr)}.ghub-hero h2{font-size:19px}.ghub-hero img{width:92px;height:92px}.gcard-art{height:170px}.gcard-art img{height:158px}}
 
   /* Écran de jeu */
