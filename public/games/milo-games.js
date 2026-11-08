@@ -236,12 +236,23 @@
   };
   MG.homeCard = function () {
     if (!MG.games.length) return '';
-    const names = MG.games.map((g) => g.name.replace(/^Milo /, ''));
+    const n = MG.games.length, word = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit'][n] || n;
     const recent = MG.games.slice().sort((a, b) => String(MG.data(b.id).lastPlayed || '').localeCompare(String(MG.data(a.id).lastPlayed || '')))[0];
-    const lines = `${MG.games.length} jeux : ${names.length > 1 ? names.slice(0, -1).join(', ') + ' et ' + names[names.length - 1] : names[0]}${recent && MG.data(recent.id).lastPlayed && recent.homeLine ? '<br>' + recent.homeLine(MG.data(recent.id)) : ''}`;
-    return `<button class="card ghome" data-go="jeux">
-      <div class="ghome-art"><img src="${MG.asset('logo_salle.webp')}" alt="" draggable="false"></div>
-      <div class="grow"><div class="h-card">La salle de jeux</div><div class="tiny">${lines}</div></div>${ic('chevron-right', 'chev')}</button>`;
+    const played = recent && MG.data(recent.id).lastPlayed;
+    const sessions = MG.games.reduce((s, g) => s + ((MG.data(g.id).stats || {}).sessions || 0), 0);
+    const logos = MG.games.map((g, i) => `<img src="${MG.asset(g.logo)}" alt="" draggable="false" style="--i:${i}">`).join('');
+    return `<button class="ghome" data-go="jeux" aria-label="Ouvrir la salle de jeux">
+      <span class="ghome-fx" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <span class="ghome-art"><img src="${MG.asset('logo_salle.webp')}" alt="" draggable="false"></span>
+      <span class="ghome-txt">
+        <span class="ghome-tag">${MG.icon('pad')}Pause détente</span>
+        <b class="ghome-t">La salle de jeux</b>
+        <span class="ghome-s">${word.charAt ? word.charAt(0).toUpperCase() + word.slice(1) : word} mini-jeux à faire avec Milo, à ton rythme.</span>
+        <span class="ghome-logos" aria-hidden="true">${logos}</span>
+      </span>
+      <span class="ghome-go">${MG.icon('play')}${played ? 'Rejouer' : 'Jouer'}</span>
+      ${played ? `<span class="ghome-last">Dernier jeu : ${recent.name.replace(/^Milo /, '')}${sessions > 1 ? ` · ${MG.fmt(sessions)} parties` : ''}</span>` : ''}
+    </button>`;
   };
 
   /* ---------- Styles communs ---------- */
@@ -269,8 +280,31 @@
   .gstats b{display:block;font-size:17px;font-weight:900;letter-spacing:-.3px;margin-top:2px;font-variant-numeric:tabular-nums}
   .gprog{height:8px;border-radius:8px;background:var(--lav-2);overflow:hidden}.gprog i{display:block;height:100%;background:linear-gradient(90deg,#ff7eb3,#9b5cf6);border-radius:8px}
   .gplay{margin-top:auto}.gplay .gi{width:16px;height:16px;fill:currentColor}
-  .ghome{width:100%;border:0;text-align:left;display:flex;align-items:center;gap:12px;margin-top:12px;background:linear-gradient(120deg,#fff,#f6f0ff)}
-  .ghome-art{display:flex;flex:none}.ghome-art img{width:64px;height:64px;border-radius:18px;object-fit:cover;box-shadow:0 6px 14px rgba(90,50,200,.28),inset 0 0 0 1px rgba(255,255,255,.2)}
+  .ghome{position:relative;width:100%;margin-top:14px;border:0;border-radius:26px;padding:16px 16px 16px 14px;display:grid;grid-template-columns:auto 1fr;grid-template-areas:"art txt" "go go";column-gap:14px;row-gap:12px;text-align:left;color:#fff;overflow:hidden;cursor:pointer;background:radial-gradient(circle at 12% 18%,rgba(255,160,240,.45),transparent 42%),radial-gradient(circle at 92% 110%,rgba(90,200,255,.45),transparent 50%),linear-gradient(135deg,#5a2fe0 0%,#7a3df0 48%,#4e5cf2 100%);box-shadow:0 16px 34px rgba(90,50,220,.34),inset 0 1px 0 rgba(255,255,255,.25);transition:transform .35s cubic-bezier(.34,1.56,.5,1)}
+  .ghome:active{transform:scale(.975)}
+  .ghome-fx{position:absolute;inset:0;pointer-events:none}
+  .ghome-fx i{position:absolute;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 0 10px rgba(255,255,255,.9);animation:ghTw 2.6s ease-in-out infinite}
+  .ghome-fx i:nth-child(1){width:5px;height:5px;left:58%;top:14%}.ghome-fx i:nth-child(2){width:3px;height:3px;left:86%;top:30%;animation-delay:.7s}.ghome-fx i:nth-child(3){width:4px;height:4px;left:34%;top:8%;animation-delay:1.3s}.ghome-fx i:nth-child(4){width:3px;height:3px;left:94%;top:8%;animation-delay:1.9s}
+  .ghome-art{grid-area:art;width:84px;height:84px;align-self:center;position:relative;animation:ghFloat 3.4s ease-in-out infinite}
+  .ghome-art:before{content:"";position:absolute;inset:-10px;border-radius:30px;background:radial-gradient(circle,rgba(190,150,255,.65),transparent 68%);filter:blur(4px)}
+  .ghome-art img{position:relative;width:84px;height:84px;border-radius:24px;box-shadow:0 10px 20px rgba(30,10,110,.45),inset 0 0 0 1px rgba(255,255,255,.25);transform:rotate(-4deg)}
+  .ghome-txt{grid-area:txt;display:flex;flex-direction:column;gap:3px;min-width:0;position:relative}
+  .ghome-tag{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;background:rgba(255,255,255,.18);font-size:11px;font-weight:900;letter-spacing:.4px;text-transform:uppercase}
+  .ghome-tag .gi{width:14px;height:14px}
+  .ghome-t{font-size:21px;font-weight:900;letter-spacing:-.4px;line-height:1.15;text-shadow:0 2px 8px rgba(30,10,110,.3)}
+  .ghome-s{font-size:13px;font-weight:700;line-height:1.35;opacity:.9}
+  .ghome-logos{display:flex;margin-top:5px}
+  .ghome-logos img{width:34px;height:34px;object-fit:contain;filter:drop-shadow(0 3px 5px rgba(20,8,80,.4));animation:ghHop 2.8s ease-in-out infinite;animation-delay:calc(var(--i) * .18s)}
+  .ghome-logos img+img{margin-left:-8px}
+  .ghome-go{grid-area:go;justify-self:stretch;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;border-radius:30px;background:#fff;color:#5a2fe0;font-size:16px;font-weight:900;box-shadow:0 8px 18px rgba(30,10,110,.3);position:relative;overflow:hidden}
+  .ghome-go .gi{width:17px;height:17px;fill:currentColor}
+  .ghome-go:after{content:"";position:absolute;top:0;bottom:0;width:40%;left:-60%;background:linear-gradient(100deg,transparent,rgba(160,120,255,.35),transparent);animation:ghShine 3.2s ease-in-out infinite}
+  .ghome-last{grid-column:1/-1;margin-top:-4px;text-align:center;font-size:12px;font-weight:800;opacity:.85}
+  @keyframes ghFloat{50%{transform:translateY(-5px)}}
+  @keyframes ghHop{0%,70%,100%{transform:none}80%{transform:translateY(-6px)}}
+  @keyframes ghTw{50%{opacity:.15;transform:scale(.5)}}
+  @keyframes ghShine{0%,55%{left:-60%}100%{left:130%}}
+  @media (prefers-reduced-motion:reduce){.ghome-art,.ghome-logos img,.ghome-fx i,.ghome-go:after{animation:none}}
   @container app (max-width:760px){.ggrid{grid-template-columns:minmax(0,1fr)}.ghub-hero h2{font-size:19px}.ghub-hero img{width:92px;height:92px}.gcard-art{height:170px}.gcard-art img{height:158px}}
 
   /* Écran de jeu */
