@@ -2,18 +2,18 @@
    Milo Melon — catalogue des mascottes de fusion
    Ce fichier est la SEULE chose à modifier pour changer la progression :
    ajouter, retirer, réordonner ou remplacer une mascotte. Le moteur lit
-   cette liste dans l'ordre (niveau 1 = la plus petite).
+   cette liste dans l’ordre (niveau 1 = la plus petite).
 
    Champs :
    - id      identifiant unique (sert aussi pour les sauvegardes)
    - name    nom affiché
    - size    rayon de collision, en unités du bocal (largeur intérieure = 360)
-   - points  points gagnés quand cette mascotte NAÎT d'une fusion
+   - points  points gagnés quand cette mascotte NAÎT d’une fusion
    - src     image dans assets/games/ (PNG ou WebP, fond transparent)
-   - body    cercle du corps dans l'image : centre (cx, cy) et rayon r,
-             en fraction de la LARGEUR (r, cx) et de la HAUTEUR (cy) de l'image.
+   - body    cercle du corps dans l’image : centre (cx, cy) et rayon r,
+             en fraction de la LARGEUR (r, cx) et de la HAUTEUR (cy) de l’image.
              Feuilles, tiges et accessoires peuvent dépasser du cercle.
-   - spawn   poids d'apparition comme prochaine mascotte (0 = jamais)
+   - spawn   poids d’apparition comme prochaine mascotte (0 = jamais)
    - color   couleur dominante (particules, interface)
    Pour une nouvelle image : déposer le fichier, mettre à jour src et body.
    ===================================================================== */

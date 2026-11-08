@@ -3,7 +3,7 @@
    Architecture du module :
      1. Catalogue      → games/melon-data.js (window.MILO_MELON_TIERS)
      2. Physique       → class World (Verlet sous-échantillonné, cercles)
-     3. Fusion         → Merge (détection, file d'attente, réactions en chaîne)
+     3. Fusion         → Merge (détection, file d’attente, réactions en chaîne)
      4. Score          → Score (points, combos, multiplicateurs)
      5. Rendu/anim.    → Render (canvas 2D, sprites pré-rendus, déformations)
      6. Interface      → écrans DOM (accueil, réglages, règles, fin)
@@ -67,7 +67,7 @@
           }
         }
       }
-      // conversion de l'impact (unités/sous-pas → unités/s)
+      // conversion de l’impact (unités/sous-pas → unités/s)
       for (const b of B) b.hit *= n / dt;
     }
   }
@@ -379,7 +379,7 @@
   function rulesHTML() {
     const T = TIERS(), ever = (api.data.stats || {}).maxTier || 0;
     return `<h3>Comment jouer</h3>
-      <ul class="ml-rules"><li><b>1</b>Glisse ton doigt pour placer la mascotte, relâche pour la lâcher.</li><li><b>2</b>Deux mascottes identiques qui se touchent fusionnent en une plus grosse.</li><li><b>3</b>Enchaîne les fusions pour multiplier tes points.</li><li><b>4</b>Si les mascottes restent au-dessus de la ligne, la partie s'arrête.</li></ul>
+      <ul class="ml-rules"><li><b>1</b>Glisse ton doigt pour placer la mascotte, relâche pour la lâcher.</li><li><b>2</b>Deux mascottes identiques qui se touchent fusionnent en une plus grosse.</li><li><b>3</b>Enchaîne les fusions pour multiplier tes points.</li><li><b>4</b>Si les mascottes restent au-dessus de la ligne, la partie s’arrête.</li></ul>
       <div class="ml-evo">${T.map((t, i) => `<span class="${i <= ever ? '' : 'lk'}"><img src="${MG.asset(t.src)}" alt=""><small>${i <= ever ? t.name : '?'}</small></span>`).join('')}</div>
       <div class="acts"><button class="gbtn" data-ml="close">${st && st.state === 'paused' ? 'Reprendre' : 'Compris'}</button></div>`;
   }

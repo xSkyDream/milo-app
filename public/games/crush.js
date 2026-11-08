@@ -33,7 +33,7 @@
   const key = (r, c) => r * N + c, rcOf = (k) => [Math.floor(k / N), k % N];
   const round50 = (x) => Math.max(50, Math.round(x / 50) * 50);
 
-  /* ---------- Génération procédurale d'un niveau ---------- */
+  /* ---------- Génération procédurale d’un niveau ---------- */
   function makeLevel(L) {
     const R = MG.rng(L * 7919 + 101);
     const shapes = Object.keys(MASKS);

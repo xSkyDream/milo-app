@@ -3,13 +3,13 @@
    Chaque niveau = réglages + thème néon + musique + build(B) qui place
    les objets. Les positions se donnent en TEMPS MUSICAUX :
    - B.x(t)     position de Milo sur le temps t
-   - B.apex(t)  sommet d'un saut lancé sur le temps t
+   - B.apex(t)  sommet d’un saut lancé sur le temps t
    - B.spikes(t, n, y, sens)  n piques à franchir en sautant sur le temps t
    Autres outils : spike(x, y, sens), row(x0, x1, y, sens) (rangée de piques),
    block(x0, x1, y0, y1), ceil(x0, x1, y) (plafond), orb(x, y), pad(x, y, sens),
    portal(x, 'ship'|'cube'|'flip'|'norm', yCentre, hauteur), saw(x, y, rayon),
    star(x, y) (3 par niveau), cam(x0, x1, yCentre) (cadrage), text(x, y, texte),
-   edge(t, dh) (bord d'un bloc plus haut de dh atteint par un saut sur t).
+   edge(t, dh) (bord d’un bloc plus haut de dh atteint par un saut sur t).
    speeds : [[temps, vitesse 0..3, yPortail]] (0 lent, 1 normal, 2 ×1,25, 3 ×1,5).
    music  : root (demi-tons depuis La), prog (accords [degré, 'm'|'M'] par mesure),
             sec ([mesure, intensité 0..4]), bass, arp, wave, bright, seed.
@@ -25,7 +25,7 @@
       gap: (b, f) => X(b) + B.v(b) * B.T * f,
       // porte de vol : ouverture centrée sur yc entre le sol et le plafond « top »
       gate: (b, yc, top, w, open) => { w = w || 1.3; open = open || 3.6; const a = yc - open / 2, c = yc + open / 2; if (a > 0.05) B.block(X(b), X(b) + w, 0, a); if (c < top - 0.05) B.block(X(b), X(b) + w, c, top); },
-      // trampoline sur le temps t, plateforme fine 3 blocs plus haut jusqu'à « end », piques dessous
+      // trampoline sur le temps t, plateforme fine 3 blocs plus haut jusqu’à « end », piques dessous
       padPlat: (b, g, end) => { g = g || 0; B.pad(X(b) + 0.2, g); B.block(X(b) + B.v(b) * 0.27, end, g + 2.4, g + 3); B.row(X(b) + 1.2, end + 1.2, g); }
     };
   }
@@ -62,14 +62,14 @@
         B.block(gap(46, 0.62), X(47.6), 0, 1);
         // refrain
         s(49, 2); s(51, 2); s(52); s(53); s(55, 2); s(57); s(58);
-        // bloc + orbe facultative vers l'étoile 2
+        // bloc + orbe facultative vers l’étoile 2
         B.block(B.edge(60, 1), X(64), 0, 1); s(61, 1, 1); s(62, 1, 1);
         B.orb(B.apex(61), 3.55); B.star(B.apex(61) + 1.67, 5.5);
         // final
         s(66); s(67); s(68, 2); s(70); s(71, 2);
         B.block(B.edge(73, 1), B.edge(74, 1), 0, 1);
         B.block(B.edge(74, 1), X(76) + 0.3, 0, 2);
-        B.star(B.apex(75), 4.5);                       // étoile 3 : saut bonus en haut de l'escalier
+        B.star(B.apex(75), 4.5);                       // étoile 3 : saut bonus en haut de l’escalier
         B.row(X(76) + 0.3, gap(76, 0.62), 0);
         B.block(gap(76, 0.62), X(78.2), 0, 2);
         s(80); s(81, 2); s(83);
@@ -86,7 +86,7 @@
         padPlat(12, 0, X(16)); s(14, 1, 3);
         B.star(B.apex(15), 5.5);                        // étoile 1 : saut bonus sur la plateforme
         s(18); s(19); s(20, 2);
-        // orbes au-dessus des fosses (touche dans l'anneau)
+        // orbes au-dessus des fosses (touche dans l’anneau)
         B.text(X(21.3), 4.6, 'Touche dans l’anneau');
         B.orb(B.apex(22), 2.57); B.row(X(22) + 0.9, X(22) + B.v(22) * 0.7855 - 1.0, 0);
         B.orb(B.apex(25), 2.57); B.row(X(25) + 0.9, X(25) + B.v(25) * 0.7855 - 1.0, 0);
@@ -100,11 +100,11 @@
         s(51); s(52, 2);
         padPlat(54, 0, X(58)); s(56, 1, 3);
         s(60); s(61);
-        // chaîne d'orbes
+        // chaîne d’orbes
         const o1 = B.apex(63), o2 = o1 + B.v(63) * 0.2325;
         B.orb(o1, 2.57); B.orb(o2, 4.73); B.row(X(63) + 0.9, o2 + B.v(63) * 0.6325 - 1.0, 0);
         s(67, 2); s(69); s(70);
-        // orbe facultative vers l'étoile 3
+        // orbe facultative vers l’étoile 3
         s(72, 2); B.orb(B.apex(72), 2.57); B.star(B.apex(72) + 1.67, 4.6);
         s(75); s(76); s(77, 2);
         // final : marche, trampoline, plateforme
@@ -125,7 +125,7 @@
         B.ceil(X(13), X(29) + 2, 6); B.cam(X(12), X(31), 3);
         B.portal(X(14), 'flip', 2, 7);
         s(16, 1, 6, -1); s(17, 1, 6, -1); s(18, 2, 6, -1);
-        B.star(B.apex(19), 3.45);                       // étoile 1 : saut bonus à l'envers
+        B.star(B.apex(19), 3.45);                       // étoile 1 : saut bonus à l’envers
         s(20, 1, 6, -1); s(21, 2, 6, -1); s(23, 1, 6, -1);
         B.block(B.edge(24, 1), X(26.6), 5, 6); s(25, 1, 5, -1);
         B.portal(X(28), 'norm', 3, 7);

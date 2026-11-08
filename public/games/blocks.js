@@ -324,7 +324,7 @@
     root.appendChild(m);
   }
 
-  /* ---------- Écran d'accueil (fiche du jeu) ---------- */
+  /* ---------- Écran d’accueil (fiche du jeu) ---------- */
   function intro() {
     const d = api.data, s = d.stats || {}, cur = d.current;
     const demo = (col, sym) => `<i class="bdemo gm k${col}"></i>`;

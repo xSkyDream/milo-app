@@ -1,6 +1,6 @@
 /* =====================================================================
    Milo Flap — tapote pour faire voler Milo entre les poteaux
-   Module isolé : s'enregistre dans MiloGames, ne dépend que du hub.
+   Module isolé : s’enregistre dans MiloGames, ne dépend que du hub.
    Rendu canvas 60 FPS : décor pré-rendu (parallaxe), physique sous-échantillonnée,
    aucune allocation DOM pendant la partie (seul le score est mis à jour).
    ===================================================================== */
@@ -10,9 +10,9 @@
 
   /* ---------- Sprites de Milo volant (remplaçables) ----------
      Pour remplacer un visuel : dépose le PNG/WebP définitif dans assets/games/flap/
-     et mets à jour « src ». ax / ay = centre du corps dans l'image (fraction 0..1),
+     et mets à jour « src ». ax / ay = centre du corps dans l’image (fraction 0..1),
      utilisé comme pivot et centre de collision. scale = correction de taille
-     si l'image n'a pas la même résolution que « vol » (1 = identique). */
+     si l’image n’a pas la même résolution que « vol » (1 = identique). */
   const SPRITES = {
     vol:      { src: 'flap/vol.webp',      ax: 0.610, ay: 0.583 }, // vol normal
     haut:     { src: 'flap/haut.webp',     ax: 0.590, ay: 0.607 }, // battement : ailes levées
@@ -35,8 +35,8 @@
   const PIPE_RIM = [[0, '#2f8423'], [0.05, '#55b934'], [0.2, '#80dc52'], [0.32, '#c2f69a'], [0.4, '#e4ffc8'], [0.52, '#98e766'], [0.8, '#64c63c'], [0.95, '#46a32e'], [1, '#2f7f22']];
   const MEDALS = [
     { at: 10, id: 'bronze', name: 'bronze', label: 'Médaille de bronze', c1: '#f6bd8a', c2: '#c06a2c' },
-    { at: 25, id: 'argent', name: 'argent', label: "Médaille d'argent", c1: '#f4f7ff', c2: '#93a0bd' },
-    { at: 50, id: 'or', name: 'or', label: "Médaille d'or", c1: '#ffe680', c2: '#e09c0c' },
+    { at: 25, id: 'argent', name: 'argent', label: "Médaille d’argent", c1: '#f4f7ff', c2: '#93a0bd' },
+    { at: 50, id: 'or', name: 'or', label: "Médaille d’or", c1: '#ffe680', c2: '#e09c0c' },
     { at: 100, id: 'diamant', name: 'diamant', label: 'Médaille de diamant', c1: '#d4f7ff', c2: '#3fb2ee' }
   ];
   const SKIES = [ // jour, coucher de soleil, nuit (alternent tous les 25 passages)
@@ -235,7 +235,7 @@
       M.rot += (1.45 - M.rot) * Math.min(1, dt * 7);
       if (M.y + MR * 0.9 >= GY + 2) { M.y = GY + 2 - MR * 0.9; land(); }
     }
-    // ressort d'étirement
+    // ressort d’étirement
     M.qv += (-260 * M.q - 15 * M.qv) * dt; M.q += M.qv * dt;
     if (st.shake > 0) st.shake = Math.max(0, st.shake - dt * 2.6);
     if (st.flash > 0) st.flash = Math.max(0, st.flash - dt * 3.4);
@@ -512,12 +512,12 @@
     if (UI.rec) UI.rec.innerHTML = b ? `${MG.icon('crown')}Record : <b>${MG.fmt(b)}</b>` : `${MG.icon('star')}Premier vol : fixe ton record`;
   }
   function subFor(s) {
-    if (s === 0) return "Milo a besoin d'élan : tapote régulièrement pour le garder en l'air.";
+    if (s === 0) return "Milo a besoin d’élan : tapote régulièrement pour le garder en l’air.";
     if (s < 5) return 'Bon début ! Trouve ton rythme avec de petites impulsions régulières.';
     if (s < 10) return 'Joli vol ! Anticipe la hauteur du prochain passage.';
     if (s < 25) return 'Belle série, Milo plane avec style.';
     if (s < 50) return 'Impressionnant, tu maîtrises le vol.';
-    return "Pilote d'élite. Milo n'en revient pas.";
+    return "Pilote d’élite. Milo n’en revient pas.";
   }
   function showOver() {
     const res = st.res || finishRun() || { record: false, prev: st.prevBest };
@@ -583,10 +583,10 @@
         <div class="fl-ready">
           <img class="fl-logo" src="${MG.asset('logo_flap.webp')}" alt="Milo Flap" draggable="false">
           <div class="fl-tap">${svg('tap')}Tap to play</div>
-          <p class="fl-hint">Touche l'écran pour battre des ailes et passe entre les poteaux.</p>
+          <p class="fl-hint">Touche l’écran pour battre des ailes et passe entre les poteaux.</p>
           <div class="fl-rec"></div>
         </div>
-        <div class="fl-pauseov"><h3>Pause</h3><p>Touche l'écran pour reprendre le vol.</p>
+        <div class="fl-pauseov"><h3>Pause</h3><p>Touche l’écran pour reprendre le vol.</p>
           <div class="fl-pacts"><button class="gbtn" data-fl="resume">${MG.icon('play')}Reprendre</button><button class="gbtn light" data-fl="quit">Quitter la partie</button></div></div>`;
       frame.insertBefore(root, frame.firstChild);
       cv = root.querySelector('.fl-cv'); ctx = cv.getContext('2d', { alpha: false });

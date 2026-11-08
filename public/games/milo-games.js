@@ -240,7 +240,7 @@
     const recent = MG.games.slice().sort((a, b) => String(MG.data(b.id).lastPlayed || '').localeCompare(String(MG.data(a.id).lastPlayed || '')))[0];
     const lines = `${MG.games.length} jeux : ${names.length > 1 ? names.slice(0, -1).join(', ') + ' et ' + names[names.length - 1] : names[0]}${recent && MG.data(recent.id).lastPlayed && recent.homeLine ? '<br>' + recent.homeLine(MG.data(recent.id)) : ''}`;
     return `<button class="card ghome" data-go="jeux">
-      <div class="ghome-art">${MG.games.map((g) => `<img src="${MG.asset(g.logo)}" alt="" draggable="false">`).join('')}</div>
+      <div class="ghome-art"><img src="${MG.asset('logo_salle.webp')}" alt="" draggable="false"></div>
       <div class="grow"><div class="h-card">La salle de jeux</div><div class="tiny">${lines}</div></div>${ic('chevron-right', 'chev')}</button>`;
   };
 
@@ -270,7 +270,7 @@
   .gprog{height:8px;border-radius:8px;background:var(--lav-2);overflow:hidden}.gprog i{display:block;height:100%;background:linear-gradient(90deg,#ff7eb3,#9b5cf6);border-radius:8px}
   .gplay{margin-top:auto}.gplay .gi{width:16px;height:16px;fill:currentColor}
   .ghome{width:100%;border:0;text-align:left;display:flex;align-items:center;gap:12px;margin-top:12px;background:linear-gradient(120deg,#fff,#f6f0ff)}
-  .ghome-art{display:flex;flex:none}.ghome-art img{width:50px;height:50px;object-fit:contain;filter:drop-shadow(0 4px 6px rgba(60,30,140,.2))}.ghome-art img+img{margin-left:-24px}
+  .ghome-art{display:flex;flex:none}.ghome-art img{width:64px;height:64px;border-radius:18px;object-fit:cover;box-shadow:0 6px 14px rgba(90,50,200,.28),inset 0 0 0 1px rgba(255,255,255,.2)}
   @container app (max-width:760px){.ggrid{grid-template-columns:minmax(0,1fr)}.ghub-hero h2{font-size:19px}.ghub-hero img{width:92px;height:92px}.gcard-art{height:170px}.gcard-art img{height:158px}}
 
   /* Écran de jeu */

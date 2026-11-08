@@ -2,7 +2,7 @@
    Milo Jump — course infinie (inspirée du Dino de Chrome), univers Milo
    Touche pour sauter, maintiens pour sauter plus haut. Cactus, rochers,
    buissons, barrières et trous ; étoiles et bulle-pansement en bonus.
-   Canvas 2D 60 FPS : décor et obstacles pré-rendus, rien n'est alloué
+   Canvas 2D 60 FPS : décor et obstacles pré-rendus, rien n’est alloué
    dans le DOM pendant la course (seul le score change).
    ===================================================================== */
 (function () {
@@ -101,7 +101,7 @@
     if (st.dist > st.nextBonus) { st.nextBonus = st.dist + 2600 + rng() * 2600; const bx = o.x + o.w / 2 + (o.type === 'hole' ? 0 : (rng() < 0.5 ? 0 : gap * 0.45)); st.bonus.push({ type: 'star', x: bx, h: o.type === 'hole' || bx === o.x + o.w / 2 ? 92 + rng() * 26 : 26 + rng() * 40 }); }
     if (st.dist > st.nextShield && !st.shield && !st.bonus.some((b) => b.type === 'shield')) { st.nextShield = st.dist + 9000 + rng() * 7000; st.bonus.push({ type: 'shield', x: o.x + gap * 0.5, h: 44 + rng() * 40 }); }
   }
-  // boîtes de collision (unités, relatives à l'obstacle)
+  // boîtes de collision (unités, relatives à l’obstacle)
   function boxes(o) {
     if (o.type === 'rock') return [[o.w * 0.12, o.w * 0.88, o.h * 0.88]];
     if (o.type === 'bush') return [[o.w * 0.14, o.w * 0.86, o.h * 0.82]];
@@ -247,7 +247,7 @@
   // course de Milo : rebond du corps (unités) et étirement vertical, image par image
   const LIFT = [0, 0.6, 2.6, 3.4, 1.2, 0, 0, 0.6, 2.6, 3.4, 1.8, 0];
   const SQ = [1, 1, 1.015, 1.025, 0.965, 0.99, 1, 1, 1.015, 1.025, 0.97, 0.99];
-  const SPP = { side: 8, top: 10, bot: 7 }; // marges des sprites d'obstacles (unités)
+  const SPP = { side: 8, top: 10, bot: 7 }; // marges des sprites d’obstacles (unités)
   function draw() {
     const c = ctx, K = V.K, k = st.night;
     let ox = 0, oy = 0; if (st.shake > 0) { const a = st.shake * st.shake * 6 * K; ox = (Math.random() * 2 - 1) * a; oy = (Math.random() * 2 - 1) * a; }
@@ -318,7 +318,7 @@
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = a; for (; x < cv.width; x += w) ctx.drawImage(img, x, y); ctx.globalAlpha = 1;
   }
   function layer2(imgs, off, yD, k, ox, oy) { if (k < 0.99) tile(imgs[0], off, yD, 1, ox, oy); if (k > 0.01) tile(imgs[1], off, yD, k, ox, oy); }
-  // trou : fosse sombre, parois de terre, lèvres d'herbe arrondies
+  // trou : fosse sombre, parois de terre, lèvres d’herbe arrondies
   function drawHole(c, h, k) {
     const x = MX + h.x - st.dist, w = h.w; if (x > V.ww + 10 || x + w < -10) return;
     const deep = (V.ch - V.gy) / V.s + 6, P = (n, i) => mix(PAL.day[n][i] || PAL.day[n], PAL.night[n][i] || PAL.night[n], k);
@@ -358,7 +358,7 @@
     c.drawImage(im, f * SHEET.fw, 0, SHEET.fw, SHEET.fh, -SHEET.ax * W, -SHEET.ay * H, W, H);
     c.globalAlpha = 1;
     if (st.shield) { const r = 50 + Math.sin(st.t * 5) * 1.5; c.drawImage(L.bubble, -r + 2, -45 - r, r * 2, r * 2); }
-    // bulle d'expression
+    // bulle d’expression
     if (st.emote && st.t - st.emoteT < st.emoteDur && IMG[st.emote] && IMG[st.emote].ok) {
       const e = (st.t - st.emoteT) / st.emoteDur, pop = e < 0.15 ? ease(e / 0.15) * 1.12 : e > 0.85 ? (1 - e) / 0.15 : 1;
       c.setTransform(K, 0, 0, K, ox + (MX + 32) * K, gyD + oy - (st.y + 124) * K); c.scale(pop, pop);
@@ -662,7 +662,7 @@
         <div class="jp-score" aria-live="off">00000</div><div class="jp-msg"></div>
         <div class="jp-hint"><b>Touche</b> pour sauter · <b>maintiens</b> pour aller plus haut</div>
         <div class="jp-menu"></div>
-        <div class="jp-pauseov"><h3>Pause</h3><p>Touche l'écran pour reprendre.</p><div class="jp-pacts"><button class="gbtn" data-jp="resume">${MG.icon('play')}Reprendre</button><button class="gbtn light" data-jp="quit">Quitter la partie</button></div></div>`;
+        <div class="jp-pauseov"><h3>Pause</h3><p>Touche l’écran pour reprendre.</p><div class="jp-pacts"><button class="gbtn" data-jp="resume">${MG.icon('play')}Reprendre</button><button class="gbtn light" data-jp="quit">Quitter la partie</button></div></div>`;
       frame.insertBefore(root, frame.firstChild);
       cv = root.querySelector('.jp-cv'); ctx = cv.getContext('2d', { alpha: false });
       UI = { score: root.querySelector('.jp-score'), best: root.querySelector('#jpBest'), msg: root.querySelector('.jp-msg'), menu: root.querySelector('.jp-menu') };

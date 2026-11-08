@@ -6,7 +6,7 @@
    le tempo, progression en %, étoiles, personnages à débloquer et mode
    entraînement avec points de contrôle.
    Simulation déterministe à pas fixe (240 Hz) : chaque niveau est validé
-   par un bot qui le termine (preuve qu'il est faisable).
+   par un bot qui le termine (preuve qu’il est faisable).
    ===================================================================== */
 (function () {
   'use strict';
@@ -45,7 +45,7 @@
   const rgba = (h, a) => { const n = parseInt(h.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
 
   /* =====================================================================
-     Construction d'un niveau : le fichier de niveaux place les objets en
+     Construction d’un niveau : le fichier de niveaux place les objets en
      temps musicaux (B.x(temps) = position de Milo sur ce temps).
      ===================================================================== */
   function buildLevel(def, idx) {
@@ -158,7 +158,7 @@
   }
 
   /* ---------- Bot de validation : recherche en profondeur avec mémoire ----------
-     Décide toutes les 1/60 s (appui ou relâché). Renvoie la suite d'actions qui
+     Décide toutes les 1/60 s (appui ou relâché). Renvoie la suite d’actions qui
      termine le niveau (et ramasse les étoiles si stars = true). */
   function solve(L, o) {
     o = o || {};
@@ -184,7 +184,7 @@
 
   /* =====================================================================
      Musique : synthèse en direct, programmée sur le temps de jeu
-     (chaque niveau : tonalité, grille d'accords, sections d'intensité)
+     (chaque niveau : tonalité, grille d’accords, sections d’intensité)
      ===================================================================== */
   const hz = (s) => 110 * Math.pow(2, s / 12);
   function melody(L) {
@@ -618,7 +618,7 @@
     c.globalCompositeOperation = 'lighter'; c.globalAlpha = skOk ? 0.32 : 0.7; c.drawImage(au, sx - ar / 2, sy - ar / 2, ar, ar); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
     c.setTransform(1, 0, 0, 1, sx, sy); if (s.gs < 0) c.scale(1, -1);
     if (skOk) {
-      // planche du personnage : 11 poses, rebond d'origine conservé
+      // planche du personnage : 11 poses, rebond d’origine conservé
       let f;
       if (s.mode === 0) { f = s.ground ? Math.floor(R.runPh) % SS.n : (s.vy * s.gs > 0 ? 4 : 9); c.rotate(R.rot); c.scale(R.sx, R.sy); }
       else { f = Math.floor(R.runPh) % SS.n; c.rotate(-clamp(s.vy * s.gs / 18, -0.45, 0.45)); }
@@ -834,7 +834,7 @@
       </article>`;
     }).join('');
     return `<div class="dh-scr dh-panel"><div class="dh-head"><button class="gclose" data-dh="home" aria-label="Retour"><svg class="gi" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><h3>Niveaux</h3><span class="grow"></span><span class="dh-tot">${MG.icon('star')}${totalStars()}</span></div>
-      <div class="dh-list gscroll">${cards}<p class="dh-foot">Les étoiles ramassées ne comptent que si tu termines le niveau. L'entraînement place des points de contrôle mais ne débloque rien.</p></div></div>`;
+      <div class="dh-list gscroll">${cards}<p class="dh-foot">Les étoiles ramassées ne comptent que si tu termines le niveau. L’entraînement place des points de contrôle mais ne débloque rien.</p></div></div>`;
   }
   const trailCss = (sk) => sk.tr.rainbow ? 'linear-gradient(90deg,transparent,#ff5f7a 25%,#ffe95c 45%,#5dff9a 62%,#4fd2ff 78%,#c77bff)' : `linear-gradient(90deg,transparent,${sk.tr.cols[0]} 30%,${sk.tr.cols[1]} 65%,${sk.tr.cols[2]})`;
   function skinsHTML() {
@@ -869,7 +869,7 @@
     const unl = []; if (r.newLevel) unl.push(`${MG.icon('trophy')}Nouveau niveau : <b>${r.newLevel}</b>`); (r.newSkins || []).forEach((n) => unl.push(`${MG.icon('star')}Nouveau personnage : <b>${n}</b>`));
     m.innerHTML = r.practice
       ? `<div class="gpanel"><img class="mas" src="${FACE('pl3_joie')}" alt=""><h3>Entraînement réussi !</h3><p>Tu connais tout le parcours de « ${def.name} ». Prêt pour le vrai défi, sans point de contrôle ?</p>
-        <div class="acts"><button class="gbtn" data-dh="play" data-lv="${st.idx}">${MG.icon('play')}Jouer en normal</button><button class="gbtn light" data-dh="practice" data-lv="${st.idx}">Refaire l'entraînement</button><button class="gbtn light" data-dh="levels">Niveaux</button></div></div>`
+        <div class="acts"><button class="gbtn" data-dh="play" data-lv="${st.idx}">${MG.icon('play')}Jouer en normal</button><button class="gbtn light" data-dh="practice" data-lv="${st.idx}">Refaire l’entraînement</button><button class="gbtn light" data-dh="levels">Niveaux</button></div></div>`
       : `<div class="gpanel"><img class="mas" src="${FACE('pl3_fete')}" alt=""><h3>${r.firstWin ? 'Niveau terminé !' : 'Encore réussi !'}</h3><p>« ${def.name} » à 100 % ${r.att > 1 ? `en ${MG.fmt(r.att)} essais` : 'du premier coup'} !</p>
         <div class="dh-wstars">${stars}</div>
         ${unl.length ? `<div class="dh-unl">${unl.map((u) => `<div>${u}</div>`).join('')}</div>` : ''}
