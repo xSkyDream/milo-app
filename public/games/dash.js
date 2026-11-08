@@ -23,14 +23,24 @@
   const LIFT = [0, 0.6, 2.6, 3.4, 1.2, 0, 0, 0.6, 2.6, 3.4, 1.8, 0], SQ = [1, 1, 1.015, 1.025, 0.965, 0.99, 1, 1, 1.015, 1.025, 0.97, 0.99]; // rebond / étirement par image (pour 98 de haut)
   const FLY = { vol: ['flap/vol.webp', 0.61, 0.583], haut: ['flap/haut.webp', 0.59, 0.607], bas: ['flap/bas.webp', 0.575, 0.592], ko: ['flap/etourdi.webp', 0.591, 0.603] };
   const PCOL = { ship: '#ff5fd2', cube: '#46f2a0', flip: '#ffd84d', norm: '#55c8ff', s0: '#ffa94d', s1: '#55c8ff', s2: '#7dff6a', s3: '#ff4f8b' };
+  /* ---------- Personnages : planche de course (11 poses, même cadrage pour les 6) et traînée ----------
+     ppb : pixels de la planche par bloc de jeu. tr : traînée (couleurs du ruban, halo, particules). */
+  const SKIN_SHEET = { n: 11, fw: 161, fh: 129, ax: 0.558, ay: 0.93, ppb: 88 };
   const SKINS = [
-    { id: 'neon', name: 'Néon', c: ['#8b5cff', '#3fd2ff'], need: null, how: 'Disponible dès le départ' },
-    { id: 'aurore', name: 'Aurore', c: ['#ff5fa8', '#ffb35c'], need: { lv: 0 }, how: 'Termine « Envol »' },
-    { id: 'glacier', name: 'Glacier', c: ['#5ff0ff', '#e6fbff'], need: { st: 3 }, how: 'Gagne 3 étoiles' },
-    { id: 'galaxie', name: 'Galaxie', c: ['#b44dff', '#ff4fd2'], need: { lv: 2 }, how: 'Termine « Gravité »' },
-    { id: 'soleil', name: 'Soleil', c: ['#ffd23f', '#ff7a3d'], need: { st: 9 }, how: 'Gagne 9 étoiles' },
-    { id: 'prisme', name: 'Prisme', c: null, need: { lv: 3 }, how: 'Termine « Hyperdrive »' }
+    { id: 'neon', name: 'Néon', c: ['#9b6bff', '#d9c2ff'], need: null, how: 'Disponible dès le départ',
+      tr: { cols: ['#3d1cff', '#8f4dff', '#efe3ff'], glow: '#8b5cff', p: ['spark', 'spark', 'zap', 'dot'], pc: ['#d9c2ff', '#ffffff', '#a77bff'], rate: 0.028 } },
+    { id: 'aurore', name: 'Aurore', c: ['#ff6fb1', '#ffb35c'], need: { lv: 0 }, how: 'Termine « Envol »',
+      tr: { cols: ['#ff2f87', '#ff7f86', '#ffd59a'], glow: '#ff7aa8', p: ['ember', 'ember', 'dot'], pc: ['#ff8fc4', '#ffb35c', '#fff0d6'], rate: 0.032 } },
+    { id: 'glacier', name: 'Glacier', c: ['#7fe3ff', '#e6fbff'], need: { st: 3 }, how: 'Gagne 3 étoiles',
+      tr: { cols: ['#1f7bff', '#5fd8ff', '#effdff'], glow: '#6fd8ff', p: ['flake', 'shard', 'dot', 'flake'], pc: ['#effdff', '#a6ecff', '#ffffff'], rate: 0.04 } },
+    { id: 'galaxie', name: 'Galaxie', c: ['#7b3dff', '#ff6ad5'], need: { lv: 2 }, how: 'Termine « Gravité »',
+      tr: { cols: ['#1a0a5c', '#6a2df0', '#ff7ad9'], glow: '#9b5cff', p: ['star4', 'dot', 'star4'], pc: ['#ffffff', '#e2c9ff', '#ff9be6'], rate: 0.036, space: true } },
+    { id: 'soleil', name: 'Soleil', c: ['#ffc22e', '#ff8a2a'], need: { st: 9 }, how: 'Gagne 9 étoiles',
+      tr: { cols: ['#ff6a00', '#ffb21f', '#fff6c4'], glow: '#ffb020', p: ['glint', 'ember', 'dot'], pc: ['#fff3b0', '#ffd23f', '#ffa53a'], rate: 0.028 } },
+    { id: 'prisme', name: 'Prisme', c: null, need: { lv: 3 }, how: 'Termine « Hyperdrive »',
+      tr: { rainbow: true, glow: '#ffffff', p: ['shard', 'glint', 'dot'], rate: 0.036 } }
   ];
+  SKINS.forEach((s) => { s.src = 'dash/skin_' + s.id + '.webp'; });
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const rgba = (h, a) => { const n = parseInt(h.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
 
@@ -278,6 +288,7 @@
     const ld = (k, src) => { if (IMG[k]) return; const im = new Image(); im.decoding = 'async'; im.onload = () => (im.ok = true); im.src = src; IMG[k] = im; };
     ld('run', MG.asset(RUN.src));
     Object.keys(FLY).forEach((k) => ld(k, MG.asset(FLY[k][0])));
+    SKINS.forEach((s) => { ld('sk_' + s.id, MG.asset(s.src)); const im = IMG['sk_' + s.id]; if (im.decode) im.decode().then(() => (im.ok = true)).catch(() => {}); });
   }
   const lvl = (i) => BUILT[i] || (BUILT[i] = buildLevel(DEFS[i], i));
   const theme = () => (DEFS[(st ? st.L.idx : sel)] || DEFS[0]).theme;
@@ -339,6 +350,25 @@
     const sk = skinOf();
     SPR.aura = sk.c ? [aura(sk.c[0])] : ['#ff4f6d', '#ffb347', '#ffe14d', '#5dff8a', '#4fd2ff', '#9b6bff'].map(aura);
     SPR.saw = {};
+    SPR.tp = buildTrailParts(sk);
+  }
+  // particules de traînée, pré-rendues pour le personnage choisi (une couleur = un sprite)
+  function buildTrailParts(sk) {
+    const out = {}, cols = sk.tr.rainbow ? ['#ff5f7a', '#ffb347', '#ffe95c', '#5dff9a', '#4fd2ff', '#a77bff', '#ff7ad9'] : sk.tr.pc;
+    const make = (type, col) => {
+      const [c, x] = mkc(1, 1); x.translate(0.5, 0.5); x.lineCap = 'round'; x.lineJoin = 'round';
+      const halo = (r, a) => { const g = x.createRadialGradient(0, 0, 0, 0, 0, r); g.addColorStop(0, rgba(col, a)); g.addColorStop(1, rgba(col, 0)); x.fillStyle = g; x.beginPath(); x.arc(0, 0, r, 0, 6.283); x.fill(); };
+      if (type === 'spark') { halo(0.45, 0.45); x.fillStyle = '#ffffff'; x.beginPath(); x.moveTo(0, -0.34); x.quadraticCurveTo(0.05, -0.05, 0.34, 0); x.quadraticCurveTo(0.05, 0.05, 0, 0.34); x.quadraticCurveTo(-0.05, 0.05, -0.34, 0); x.quadraticCurveTo(-0.05, -0.05, 0, -0.34); x.fill(); }
+      else if (type === 'ember') { halo(0.48, 0.75); x.fillStyle = 'rgba(255,255,255,.9)'; x.beginPath(); x.arc(0, 0, 0.09, 0, 6.283); x.fill(); }
+      else if (type === 'dot') { halo(0.3, 0.9); }
+      else if (type === 'flake') { halo(0.45, 0.3); x.strokeStyle = col; x.lineWidth = 0.05; for (let i = 0; i < 6; i++) { const a = i * 1.0472, ca = Math.cos(a), sa = Math.sin(a); x.beginPath(); x.moveTo(0, 0); x.lineTo(ca * 0.36, sa * 0.36); x.moveTo(ca * 0.2, sa * 0.2); x.lineTo(ca * 0.2 + Math.cos(a + 0.8) * 0.1, sa * 0.2 + Math.sin(a + 0.8) * 0.1); x.moveTo(ca * 0.2, sa * 0.2); x.lineTo(ca * 0.2 + Math.cos(a - 0.8) * 0.1, sa * 0.2 + Math.sin(a - 0.8) * 0.1); x.stroke(); } }
+      else if (type === 'shard') { halo(0.42, 0.35); x.beginPath(); x.moveTo(0, -0.36); x.lineTo(0.17, -0.02); x.lineTo(0, 0.3); x.lineTo(-0.17, -0.02); x.closePath(); const g = x.createLinearGradient(-0.17, -0.3, 0.17, 0.3); g.addColorStop(0, '#ffffff'); g.addColorStop(0.5, col); g.addColorStop(1, rgba(col, 0.6)); x.fillStyle = g; x.fill(); x.strokeStyle = 'rgba(255,255,255,.85)'; x.lineWidth = 0.03; x.stroke(); x.beginPath(); x.moveTo(0, -0.36); x.lineTo(0, 0.3); x.strokeStyle = 'rgba(255,255,255,.5)'; x.stroke(); }
+      else if (type === 'star4') { halo(0.4, 0.4); x.fillStyle = '#ffffff'; x.beginPath(); x.moveTo(0, -0.42); x.quadraticCurveTo(0.03, -0.03, 0.42, 0); x.quadraticCurveTo(0.03, 0.03, 0, 0.42); x.quadraticCurveTo(-0.03, 0.03, -0.42, 0); x.quadraticCurveTo(-0.03, -0.03, 0, -0.42); x.fill(); }
+      else if (type === 'glint') { halo(0.45, 0.55); x.strokeStyle = '#fffbe6'; x.lineWidth = 0.05; x.beginPath(); x.moveTo(-0.38, 0); x.lineTo(0.38, 0); x.moveTo(0, -0.38); x.lineTo(0, 0.38); x.stroke(); x.lineWidth = 0.035; x.beginPath(); x.moveTo(-0.16, -0.16); x.lineTo(0.16, 0.16); x.moveTo(0.16, -0.16); x.lineTo(-0.16, 0.16); x.stroke(); }
+      return c;
+    };
+    sk.tr.p.forEach((type) => { if (type !== 'zap' && !out[type]) out[type] = cols.map((col) => make(type, col)); });
+    return out;
   }
   function sawSpr(r) {
     if (SPR.saw[r]) return SPR.saw[r];
@@ -394,7 +424,7 @@
   function refreshTheme() { sprKey = ''; buildSprites(); buildBg(); }
 
   /* ---------- Scène (partie en cours ou décor des menus) ---------- */
-  function newRender() { return { rot: 0, spin: 0, rate: 0, sx: 1, sy: 1, runPh: 0, trail: [], flap: 0, emit: 0, ko: null }; }
+  function newRender() { return { rot: 0, spin: 0, rate: 0, sx: 1, sy: 1, runPh: 0, trail: [], flap: 0, emit: 0, temit: 0, lastF: -1, ko: null }; }
   function scene() { return st && state !== 'home' && state !== 'levels' && state !== 'skins' ? st : menu; }
   function makeMenu() { menu = { L: { objs: [], gS: {}, gO: {}, cams: [], texts: [], lenX: 1e9, spb: 0.5, idx: sel }, sim: { x: 0, y: 0.5, vy: 0, gs: 1, mode: 0, ground: true, t: 0, used: [], hold: false }, camX: 0, camY: 0, R: newRender(), t: 0, cps: [], menu: true, shake: 0, flash: 0, deadT: -1, wonT: -1 }; }
 
@@ -500,29 +530,100 @@
     if (S.attTxt) txt(S.attTxt, 6.4, 5.2, 0.85);
     for (const t of L.texts) txt(t.s, t.x, t.y, 0.6);
   }
+  // traînée : 3 rubans effilés qui suivent la trajectoire réelle de Milo (points horodatés),
+  // longueur proportionnelle à la vitesse, ondulation propre, fondu en queue ; puis particules
+  const TR_LIFE = 0.34, STREAMS = [[-0.22, 0.72, 0.5, 0], [0.02, 1, 1, 1], [0.25, 0.86, 0.62, 2]];
   function drawTrail(S) {
-    const R = S.R, tr = R.trail, n = tr.length; if (n < 2 || S.deadT >= 0) return;
-    const c = ctx, K = V.K, cols = skinCols(S.t);
-    c.globalCompositeOperation = 'lighter'; c.lineCap = 'round';
-    for (let i = 1; i < n; i++) {
-      const k = i / n, [x0, y0] = W2S(S, tr[i - 1][0], tr[i - 1][1]), [x1, y1] = W2S(S, tr[i][0], tr[i][1]);
-      c.globalAlpha = k * 0.45; c.strokeStyle = i < n * 0.5 ? cols[1] : cols[0]; c.lineWidth = (0.05 + k * 0.26) * K;
-      c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+    const R = S.R, tr = R.trail, c = ctx, K = V.K, sk = skinOf(), T = sk.tr, now = S.t, gs = S.sim.gs < 0 ? -1 : 1;
+    if (tr.length >= 2) {
+      for (const [off, lenF, wF, k] of STREAMS) {
+        const life = TR_LIFE * lenF, pts = [];
+        for (let i = 0; i < tr.length; i++) {
+          const p = tr[i], age = now - p.t; if (age > life || age < 0) continue;
+          const u = 1 - age / life, [sx, sy] = W2S(S, p.x, p.y), wob = Math.sin(now * 13 + p.t * 40 + k * 2) * 0.07 * (1 - u) * K;
+          pts.push([sx, sy - off * gs * K + wob, u]);
+        }
+        if (pts.length < 2) continue;
+        const a = pts[0], b = pts[pts.length - 1], W = 0.36 * K * wF;
+        // halo
+        c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.28;
+        ribbon(c, pts, W * 2.3); c.fillStyle = T.rainbow ? `hsl(${(now * 140 + k * 70 + 120) % 360},100%,60%)` : rgba(T.glow, 1); c.fill();
+        // ruban
+        const g = c.createLinearGradient(a[0], a[1], b[0], b[1]);
+        if (T.rainbow) { const h0 = (now * 140 + k * 70) % 360; g.addColorStop(0, `hsla(${h0},100%,65%,0)`); for (let j = 1; j <= 4; j++) g.addColorStop(j / 4, `hsla(${(h0 + j * 55) % 360},100%,${56 + j * 3}%,${0.3 + j * 0.17})`); }
+        else { g.addColorStop(0, rgba(T.cols[0], 0)); g.addColorStop(0.45, rgba(T.cols[0], 0.6)); g.addColorStop(0.8, rgba(T.cols[1], 0.9)); g.addColorStop(1, rgba(T.cols[2], 1)); }
+        if (T.space) { c.globalCompositeOperation = 'source-over'; c.globalAlpha = 0.85; ribbon(c, pts, W); c.fillStyle = g; c.fill(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.45; ribbon(c, pts, W * 0.35); c.fillStyle = rgba(T.cols[2], 1); c.fill(); }
+        else { c.globalAlpha = 0.95; ribbon(c, pts, W); c.fillStyle = g; c.fill(); c.globalAlpha = T.rainbow ? 0.3 : 0.7; ribbon(c, pts, W * (T.rainbow ? 0.22 : 0.32)); c.fillStyle = 'rgba(255,255,255,.9)'; c.fill(); }
+      }
     }
-    c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; c.lineCap = 'butt';
+    // particules de traînée
+    c.globalCompositeOperation = 'lighter';
+    for (const p of tparts) {
+      const k = p.life / p.max, [sx, sy] = W2S(S, p.x, p.y);
+      if (p.type === 'zap') { c.globalAlpha = k; c.strokeStyle = '#efe3ff'; c.lineWidth = 0.05 * K; c.beginPath(); p.pts.forEach(([dx, dy], i) => { const X = sx + dx * K, Y = sy - dy * K; i ? c.lineTo(X, Y) : c.moveTo(X, Y); }); c.stroke(); continue; }
+      const img = p.img; if (!img) continue;
+      let a = Math.min(1, k * 1.6); if (p.type === 'star4') a *= 0.55 + 0.45 * Math.sin(now * 24 + p.ph);
+      const z = p.size * K * (p.type === 'ember' || p.type === 'dot' ? 0.5 + 0.5 * k : 1);
+      c.globalAlpha = a;
+      if (p.rot) { c.setTransform(Math.cos(p.rot), Math.sin(p.rot), -Math.sin(p.rot), Math.cos(p.rot), sx, sy); c.drawImage(img, -z / 2, -z / 2, z, z); c.setTransform(1, 0, 0, 1, 0, 0); }
+      else c.drawImage(img, sx - z / 2, sy - z / 2, z, z);
+    }
+    c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+  }
+  function ribbon(c, pts, W) {
+    const n = pts.length, L = [], Rt = [];
+    for (let i = 0; i < n; i++) {
+      const p = pts[i], q = pts[Math.max(0, i - 1)], r = pts[Math.min(n - 1, i + 1)];
+      let dx = r[0] - q[0], dy = r[1] - q[1]; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+      const w = W * Math.pow(p[2], 0.9) * 0.5;
+      L.push([p[0] - dy * w, p[1] + dx * w]); Rt.push([p[0] + dy * w, p[1] - dx * w]);
+    }
+    c.beginPath(); c.moveTo(L[0][0], L[0][1]); for (let i = 1; i < n; i++) c.lineTo(L[i][0], L[i][1]);
+    const h = pts[n - 1]; c.arc(h[0], h[1], W * 0.5 * Math.pow(h[2], 0.9), Math.atan2(L[n - 1][1] - h[1], L[n - 1][0] - h[0]), Math.atan2(Rt[n - 1][1] - h[1], Rt[n - 1][0] - h[0]), true);
+    for (let i = n - 1; i >= 0; i--) c.lineTo(Rt[i][0], Rt[i][1]); c.closePath();
+  }
+  const tparts = [];
+  function emitTrail(S, dt) {
+    const s = S.sim, R = S.R, sk = skinOf(), T = sk.tr, tp = SPR.tp; if (!tp) return;
+    R.temit -= dt; const rate = T.rate * (MG.reduced() ? 2 : 1), gs = s.gs < 0 ? -1 : 1;
+    while (R.temit <= 0) {
+      R.temit += rate; if (tparts.length > 80) continue;
+      const type = T.p[Math.floor(Math.random() * T.p.length)], x = s.x - 0.45 - Math.random() * 0.5, y = s.y + (Math.random() - 0.5) * 0.7;
+      const p = { type, x, y, vx: -0.4 - Math.random(), vy: (Math.random() - 0.5) * 1.1 * gs, life: 0.5, size: 0.3, rot: 0, vr: 0, ph: Math.random() * 6 };
+      if (type === 'zap') { p.life = 0.12 + Math.random() * 0.06; p.vx = 0; p.vy = 0; let px = 0, py = 0; p.pts = [[0, 0]]; for (let i = 0; i < 3; i++) { px -= 0.18 + Math.random() * 0.14; py += (Math.random() - 0.5) * 0.4; p.pts.push([px, py]); } }
+      else if (type === 'spark') { p.life = 0.35 + Math.random() * 0.2; p.size = 0.24 + Math.random() * 0.12; p.rot = Math.random() * 3; }
+      else if (type === 'ember') { p.life = 0.5 + Math.random() * 0.3; p.size = 0.26 + Math.random() * 0.14; p.vy = (0.5 + Math.random()) * gs; }
+      else if (type === 'flake') { p.life = 0.7 + Math.random() * 0.35; p.size = 0.32 + Math.random() * 0.12; p.vy = -(0.3 + Math.random() * 0.5) * gs; p.rot = Math.random() * 3; p.vr = (Math.random() - 0.5) * 3; }
+      else if (type === 'shard') { p.life = 0.5 + Math.random() * 0.3; p.size = 0.3 + Math.random() * 0.1; p.rot = Math.random() * 6; p.vr = (Math.random() - 0.5) * 7; }
+      else if (type === 'star4') { p.life = 0.6 + Math.random() * 0.35; p.size = 0.3 + Math.random() * 0.2; p.vx = -0.3 - Math.random() * 0.4; }
+      else if (type === 'glint') { p.life = 0.35 + Math.random() * 0.2; p.size = 0.32 + Math.random() * 0.12; p.rot = Math.random() * 0.8; }
+      else { p.life = 0.35 + Math.random() * 0.25; p.size = 0.14 + Math.random() * 0.08; }
+      p.max = p.life; const set = tp[type]; p.img = set ? set[Math.floor(Math.random() * set.length)] : null;
+      tparts.push(p);
+    }
   }
   function drawMilo(S, pulse) {
     const c = ctx, K = V.K, s = S.sim, R = S.R;
+    const SS = SKIN_SHEET, sk = skinOf(), sim = IMG['sk_' + sk.id], skOk = sim && sim.ok, SH = SS.fh / SS.ppb * K, SW = SS.fw / SS.ppb * K;
     if (S.deadT >= 0) {
-      const ko = R.ko, im = IMG.ko; if (!ko || !im || !im.ok || S.deadT > 0.65) return;
-      const [sx, sy] = W2S(S, ko.x, ko.y), H = 1.2 * K, Wd = H * im.width / im.height;
-      c.globalAlpha = clamp(1 - S.deadT / 0.65, 0, 1); c.setTransform(1, 0, 0, 1, sx, sy); c.rotate(ko.r); c.drawImage(im, -FLY.ko[1] * Wd, -FLY.ko[2] * H, Wd, H); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; return;
+      // Milo (dans son style) est éjecté en tournoyant puis disparaît
+      const ko = R.ko; if (!ko || S.deadT > 0.65) return;
+      const [sx, sy] = W2S(S, ko.x, ko.y); c.globalAlpha = clamp(1 - S.deadT / 0.65, 0, 1); c.setTransform(1, 0, 0, 1, sx, sy); c.rotate(ko.r);
+      if (skOk) c.drawImage(sim, 5 * SS.fw, 0, SS.fw, SS.fh, -SS.ax * SW, -0.55 * SH, SW, SH);
+      else if (IMG.ko && IMG.ko.ok) { const H = 1.2 * K, Wd = H * IMG.ko.width / IMG.ko.height; c.drawImage(IMG.ko, -FLY.ko[1] * Wd, -FLY.ko[2] * H, Wd, H); }
+      c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; return;
     }
     const [sx, sy] = W2S(S, s.x, s.y);
     const auras = SPR.aura, au = auras[Math.floor(S.t * 3) % auras.length], ar = 3 * K * (1 + pulse * 0.08);
-    c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.7; c.drawImage(au, sx - ar / 2, sy - ar / 2, ar, ar); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+    c.globalCompositeOperation = 'lighter'; c.globalAlpha = skOk ? 0.32 : 0.7; c.drawImage(au, sx - ar / 2, sy - ar / 2, ar, ar); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
     c.setTransform(1, 0, 0, 1, sx, sy); if (s.gs < 0) c.scale(1, -1);
-    if (s.mode === 0) {
+    if (skOk) {
+      // planche du personnage : 11 poses, rebond d'origine conservé
+      let f;
+      if (s.mode === 0) { f = s.ground ? Math.floor(R.runPh) % SS.n : (s.vy * s.gs > 0 ? 4 : 9); c.rotate(R.rot); c.scale(R.sx, R.sy); }
+      else { f = Math.floor(R.runPh) % SS.n; c.rotate(-clamp(s.vy * s.gs / 18, -0.45, 0.45)); }
+      c.drawImage(sim, f * SS.fw, 0, SS.fw, SS.fh, -SS.ax * SW, 0.5 * K - SS.ay * SH, SW, SH);
+    } else if (s.mode === 0) {
       const im = IMG.run; if (!im || !im.ok) { c.setTransform(1, 0, 0, 1, 0, 0); return; }
       const H = 1.3 * K, Wd = H * RUN.fw / RUN.fh; let f, bob = 0, sq = 1;
       if (s.ground) { const ph = R.runPh % RUN.n, fr = ph - Math.floor(ph); f = Math.floor(ph); const nx = (f + 1) % RUN.n; bob = (LIFT[f] + (LIFT[nx] - LIFT[f]) * fr) * H / 98; sq = SQ[f] + (SQ[nx] - SQ[f]) * fr; }
@@ -548,6 +649,7 @@
   function updFx(S, dt) {
     for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; } p.vy -= p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 1 - dt * 1.5; if (p.rot != null) p.rot += p.vr * dt; }
     for (let i = rings.length - 1; i >= 0; i--) { const r = rings[i]; r.life -= dt; if (r.life <= 0) { rings.splice(i, 1); continue; } r.r += r.vr * dt; r.vr *= 1 - dt * 3; }
+    for (let i = tparts.length - 1; i >= 0; i--) { const p = tparts[i]; p.life -= dt; if (p.life <= 0) { tparts.splice(i, 1); continue; } p.x += p.vx * dt; p.y += p.vy * dt; if (p.vr) p.rot += p.vr * dt; }
     if (S.shake > 0) S.shake = Math.max(0, S.shake - dt * 2.6);
     if (S.flash > 0) S.flash = Math.max(0, S.flash - dt * 3);
   }
@@ -555,20 +657,20 @@
   function animMilo(S, dt) {
     const s = S.sim, R = S.R, cols = skinCols(S.t);
     if (s.mode === 0) {
-      if (s.ground) { R.runPh += dt * (S.menu ? 18 : 13 + SPEEDS[s.spd]); const tg = Math.round(R.rot / 6.2832) * 6.2832; R.rot += (tg - R.rot) * (1 - Math.exp(-dt * 28)); }
+      if (s.ground) { R.runPh += dt * (S.menu ? 17 : 11 + SPEEDS[s.spd] * 1.2); const tg = Math.round(R.rot / 6.2832) * 6.2832; R.rot += (tg - R.rot) * (1 - Math.exp(-dt * 28)); }
       else if (R.spin) R.rot += R.rate * dt;
       else R.rot += (0.18 - R.rot) * (1 - Math.exp(-dt * 6));
-    } else { R.rot = 0; R.flap += dt; }
+    } else { R.rot = 0; R.flap += dt; R.runPh += dt * 15; }
     R.sx += (1 - R.sx) * (1 - Math.exp(-dt * 14)); R.sy += (1 - R.sy) * (1 - Math.exp(-dt * 14));
+    // traînée : points horodatés (la longueur suit la vitesse), vieillissement continu même après la mort
+    const now = S.t; while (R.trail.length && now - R.trail[0].t > TR_LIFE) R.trail.shift();
     if (S.deadT < 0) {
-      const tx = s.mode === 1 ? s.x - 0.75 : s.x, ty = s.y;
-      R.trail.push([tx, ty]); if (R.trail.length > 14) R.trail.shift();
-      R.emit -= dt;
-      if (R.emit <= 0) {
-        if (s.mode === 0 && s.ground) { R.emit = 0.045; addP(s.x - 0.35, s.y - 0.5 * s.gs, -2 - Math.random() * 2, (1 + Math.random() * 2) * s.gs, cols[Math.random() < 0.5 ? 0 : 1], 0.13, 0.35, 6 * s.gs); }
-        else if (s.mode === 1) { R.emit = 0.025; addP(s.x - 0.9, s.y - 0.1 * s.gs, -5 - Math.random() * 2, (Math.random() - 0.5) * 1.2, cols[Math.random() < 0.6 ? 0 : 1], s.hold ? 0.22 : 0.14, 0.32); }
-        else R.emit = 0.05;
-      }
+      R.trail.push({ x: s.x - 0.32, y: s.y + 0.04 * (s.gs < 0 ? -1 : 1), t: now });
+      emitTrail(S, dt);
+      // poussière aux appuis (poses où les pieds touchent le sol)
+      const f = Math.floor(R.runPh) % SKIN_SHEET.n;
+      if (s.mode === 0 && s.ground && f !== R.lastF) { R.lastF = f; if (f === 2 || f === 9) for (let i = 0; i < 3; i++) addP(s.x - 0.1 + Math.random() * 0.3, s.y - 0.5 * s.gs, -1.5 - Math.random() * 2, (0.8 + Math.random() * 1.6) * s.gs, cols[i % 2], 0.12, 0.32, 6 * s.gs); }
+      if (s.mode === 1) { R.emit -= dt; if (R.emit <= 0) { R.emit = 0.05; addP(s.x - 0.8, s.y - 0.1 * s.gs, -4 - Math.random() * 2, (Math.random() - 0.5) * 1.2, cols[Math.random() < 0.6 ? 0 : 1], s.hold ? 0.18 : 0.12, 0.3); } }
     }
   }
 
@@ -598,7 +700,7 @@
     const s = cp ? cp.s.clone() : new Sim(L);
     s.ev = []; s.hold = held(); s.buf = 0;
     st.sim = s; st.cands = []; st.cpT = 0; st.deadT = -1; st.wonT = -1; st.inQ.length = 0; st.simReal = performance.now(); st.respawnT = s.t; st.jumps0 = s.jumps;
-    st.R = newRender(); st.camX = s.x - V.px; st.camY = camTarget(s);
+    st.R = newRender(); tparts.length = 0; st.camX = s.x - V.px; st.camY = camTarget(s);
     st.att++;
     if (!st.practice) { lv.att = (lv.att || 0) + 1; d.stats.attempts = (d.stats.attempts || 0) + 1; st.dirty = true; }
     st.attTxt = st.practice ? (cp ? '' : 'Entraînement') : 'Essai ' + (lv.att || st.att);
@@ -734,16 +836,17 @@
     return `<div class="dh-scr dh-panel"><div class="dh-head"><button class="gclose" data-dh="home" aria-label="Retour"><svg class="gi" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><h3>Niveaux</h3><span class="grow"></span><span class="dh-tot">${MG.icon('star')}${totalStars()}</span></div>
       <div class="dh-list gscroll">${cards}<p class="dh-foot">Les étoiles ramassées ne comptent que si tu termines le niveau. L'entraînement place des points de contrôle mais ne débloque rien.</p></div></div>`;
   }
+  const trailCss = (sk) => sk.tr.rainbow ? 'linear-gradient(90deg,transparent,#ff5f7a 25%,#ffe95c 45%,#5dff9a 62%,#4fd2ff 78%,#c77bff)' : `linear-gradient(90deg,transparent,${sk.tr.cols[0]} 30%,${sk.tr.cols[1]} 65%,${sk.tr.cols[2]})`;
   function skinsHTML() {
     const d = api.data;
     const tiles = SKINS.map((sk) => {
-      const open = skinOpen(sk), on = d.skin === sk.id, bg = sk.c ? `radial-gradient(circle at 50% 55%,${rgba(sk.c[0], 0.85)},${rgba(sk.c[1], 0.25)} 62%,transparent 72%)` : 'radial-gradient(circle at 50% 55%,rgba(255,255,255,.5),transparent 70%),conic-gradient(from 30deg,#ff4f6d,#ffe14d,#5dff8a,#4fd2ff,#9b6bff,#ff4f6d)';
+      const open = skinOpen(sk), on = d.skin === sk.id, bg = sk.c ? `radial-gradient(circle at 50% 55%,${rgba(sk.c[0], 0.85)},${rgba(sk.c[1], 0.25)} 62%,transparent 72%)` : 'radial-gradient(circle at 50% 55%,rgba(255,255,255,.28),transparent 70%),conic-gradient(from 30deg,rgba(255,79,109,.45),rgba(255,225,77,.45),rgba(93,255,138,.45),rgba(79,210,255,.45),rgba(155,107,255,.45),rgba(255,79,109,.45))';
       return `<button class="dh-sk ${open ? '' : 'locked'} ${on ? 'on' : ''}" data-dh="skin" data-sk="${sk.id}" ${open ? '' : 'aria-disabled="true"'}>
-        <span class="dh-sk-art" style="background:${bg}"><i class="dh-sk-milo"></i>${open ? '' : `<span class="dh-sk-lock">${MG.icon('lock')}</span>`}</span>
+        <span class="dh-sk-art" style="background:${bg}"><i class="dh-sk-tr" style="background:${trailCss(sk)}"></i><i class="dh-sk-milo" style="background-image:url(${MG.asset(sk.src)})"></i>${open ? '' : `<span class="dh-sk-lock">${MG.icon('lock')}</span>`}</span>
         <b>${sk.name}</b><small>${on ? 'Choisi' : open ? 'Toucher pour choisir' : sk.how}</small></button>`;
     }).join('');
     return `<div class="dh-scr dh-panel"><div class="dh-head"><button class="gclose" data-dh="home" aria-label="Retour"><svg class="gi" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><h3>Personnage</h3></div>
-      <div class="dh-list gscroll"><p class="dh-sub">Milo garde sa bouille : chaque style change son aura et sa traînée lumineuse.</p><div class="dh-skins">${tiles}</div></div></div>`;
+      <div class="dh-list gscroll"><p class="dh-sub">Chaque Milo a sa propre course animée et sa traînée lumineuse. Touche un personnage débloqué pour le choisir.</p><div class="dh-skins">${tiles}</div></div></div>`;
   }
   function showScreen(s) {
     screen = s; st && Music.stop();
@@ -864,7 +967,6 @@
       const lv = d.levels || {}, done = DEFS.filter((def) => (lv[def.id] || {}).done).length, att = (d.stats || {}).attempts || 0, stars = starsIn(d);
       const cur = DEFS.find((def) => !(lv[def.id] || {}).done), best = cur ? ((lv[cur.id] || {}).best || 0) : 100;
       return { desc: 'Milo fonce en rythme sur une musique néon : touche pour sauter, traverse portails, orbes et pièges. 4 niveaux à finir à 100 %.',
-        art: `<i class="dh-cmilo" aria-hidden="true"></i>`,
         stats: [['Niveaux', `${done}/${DEFS.length}`, 'trophy'], ['Étoiles', `${stars}/${DEFS.length * 3}`, 'star'], ['Essais', MG.fmt(att), 'redo']],
         progress: DEFS.length ? (done + (cur ? best / 100 : 0)) / DEFS.length : 0, progressLabel: cur ? `« ${cur.name} » : record ${best} %` : 'Tous les niveaux sont terminés !',
         cta: att ? (cur ? 'Continuer' : 'Rejouer') : 'Foncer avec Milo' };
@@ -938,7 +1040,11 @@
   .dh-sk.on{border-color:#7fe3ff;box-shadow:0 0 16px rgba(127,227,255,.5)}
   .dh-sk b{font-size:15px;font-weight:900}.dh-sk small{font-size:11.5px;font-weight:800;color:rgba(255,255,255,.65);text-align:center}
   .dh-sk-art{position:relative;width:96px;height:96px;border-radius:50%;display:grid;place-items:center}
-  .dh-sk-milo{width:72px;height:79px;background:url(${MG.asset(RUN.src)}) 0 0/1200% 100% no-repeat;animation:dhrun .6s steps(12) infinite}
+  .dh-sk-milo{position:relative;z-index:1;width:94px;height:75px;margin-left:8px;background-position:0 0;background-size:1100% 100%;background-repeat:no-repeat;animation:dhsk .55s steps(11) infinite}
+  .dh-sk-tr{position:absolute;left:-4px;top:42%;width:62px;height:16px;border-radius:16px;filter:blur(2.5px);opacity:.9;transform-origin:100% 50%;animation:dhtr .5s ease-in-out infinite alternate}
+  .dh-sk.locked .dh-sk-tr{opacity:.25;filter:blur(2.5px) grayscale(1)}
+  @keyframes dhsk{to{background-position:110% 0}}
+  @keyframes dhtr{to{transform:scaleX(.82) translateY(2px)}}
   .dh-sk.locked .dh-sk-milo{filter:grayscale(1) brightness(.6)}
   .dh-sk-lock{position:absolute;right:2px;bottom:2px;width:30px;height:30px;border-radius:50%;background:rgba(10,5,38,.9);display:grid;place-items:center}.dh-sk-lock .gi{width:16px;height:16px}
   .dh-pauseov{position:absolute;inset:0;z-index:7;display:none;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:24px;background:rgba(8,4,30,.55);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);text-align:center}
@@ -954,12 +1060,8 @@
   .dh-wstars i.new{animation:dhstar .7s cubic-bezier(.3,1.7,.5,1) both .3s}
   @keyframes dhstar{0%{transform:scale(0) rotate(-40deg)}100%{transform:none}}
   .dh-unl{display:flex;flex-direction:column;gap:6px;margin:8px 0 2px}.dh-unl div{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:14px;background:rgba(255,210,63,.12);border:1px solid rgba(255,210,63,.45);font-size:13.5px;font-weight:800}.dh-unl .gi{width:16px;height:16px;color:#ffd23f}
-  .gcard.dash .gcard-art{background:radial-gradient(circle at 70% 25%,rgba(255,79,210,.45),transparent 50%),linear-gradient(180deg,#120838 0%,#2a0f63 70%,#0d0630 70%)}
-  .gcard.dash .gcard-art:after{content:"";position:absolute;left:0;right:0;bottom:30%;height:3px;background:#6ee7ff;box-shadow:0 0 12px #6ee7ff}
-  .gcard.dash .gcard-art img{position:relative;z-index:1;margin-left:28%}
-  .dh-cmilo{position:absolute;left:5%;bottom:calc(30% - 2px);width:78px;height:85px;z-index:2;background:url(${MG.asset(RUN.src)}) 0 0/1200% 100% no-repeat;animation:dhrun .55s steps(12) infinite;filter:drop-shadow(0 0 10px rgba(140,100,255,.9))}
-  @keyframes dhrun{to{background-position:109.0909% 0}}
-  @media (prefers-reduced-motion:reduce){.dh-logo,.dh-hint,.dh-cmilo,.dh-sk-milo{animation:none}}
+  .gcard.dash .gcard-art{background:radial-gradient(circle at 18% 22%,rgba(255,79,216,.6),transparent 46%),radial-gradient(circle at 84% 82%,rgba(63,210,255,.55),transparent 50%),radial-gradient(circle at 50% 50%,rgba(139,92,255,.45),transparent 65%),linear-gradient(155deg,#1c0b57,#3a1488 52%,#120842)}
+  @media (prefers-reduced-motion:reduce){.dh-logo,.dh-hint,.dh-sk-milo,.dh-sk-tr{animation:none}}
   `;
   const stl = document.createElement('style'); stl.textContent = css; document.head.appendChild(stl);
 })();
