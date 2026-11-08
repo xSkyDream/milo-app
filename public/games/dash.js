@@ -817,7 +817,7 @@
       <div class="dh-sheet">
         <div class="dh-chips"><div>${MG.icon('star')}<b>${totalStars()}/${nst}</b><span>Étoiles</span></div><div>${MG.icon('trophy')}<b>${doneCount()}/${DEFS.length}</b><span>Niveaux</span></div><div>${MG.icon('redo')}<b>${MG.fmt(d.stats.attempts || 0)}</b><span>Essais</span></div></div>
         <button class="gbtn dh-big" data-dh="levels">${MG.icon('play')}Jouer</button>
-        <button class="gbtn light dh-skinbtn" data-dh="skins"><i class="dh-dot" style="background:${sk.c ? `linear-gradient(135deg,${sk.c[0]},${sk.c[1]})` : 'conic-gradient(#ff4f6d,#ffe14d,#5dff8a,#4fd2ff,#9b6bff,#ff4f6d)'}"></i>Personnage : ${sk.name}</button>
+        <button class="gbtn light dh-skinbtn" data-dh="skins"><i class="dh-dot" style="background:${sk.c ? `linear-gradient(135deg,${sk.c[0]},${sk.c[1]})` : 'conic-gradient(#ff4f6d,#ffe14d,#5dff8a,#4fd2ff,#9b6bff,#ff4f6d)'}"></i>Changer de skin</button>
         <p class="dh-tip"><b>Touche</b> pour sauter, <b>maintiens</b> pour enchaîner. Saute sur le rythme !</p>
       </div></div>`;
   }
