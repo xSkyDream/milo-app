@@ -57,3 +57,34 @@ Sans `GEMINI_API_KEY`, l'app fonctionne quand même : Milo répond avec ses rép
 - **Animation de course de Milo (Jump)** : planche de 8 images `public/assets/games/jump/run.webp` générée depuis le visuel officiel ; constante `SHEET` en haut de `jump.js`.
 - **Changer les bonbons** : déposer les images dans `public/assets/games/` et modifier la liste `PIECES` en haut de `public/games/crush.js`.
 - **Ajouter un jeu** : créer `public/games/mon-jeu.js` qui appelle `MiloGames.register({ id, name, logo, card(), mount(), unmount() })`, puis l'inclure dans `index.html`.
+
+
+## Comptes et synchronisation (Supabase)
+
+Connexion avec Google ou e-mail + mot de passe (Apple prévu, désactivé tant que `AUTH_APPLE` ≠ `1`). Toutes les données de l'app (traitements, prises, soins, profil, mémoire et conversations de Milo, progression des jeux) sont synchronisées par compte. Sans configuration, l'app reste 100 % locale.
+
+Aucune clé dans le code : l'app lit sa configuration sur `/api/config`, qui renvoie les variables d'environnement Vercel.
+
+### Mise en place (une seule fois)
+
+1. **Créer le projet** sur supabase.com : *New project*, région **Europe (Paris ou Frankfurt)**.
+2. **Créer la table** : *SQL Editor* → coller le contenu de `supabase/schema.sql` → *Run*. Les règles RLS garantissent que chacun ne lit que ses propres données.
+3. **Adresses autorisées** : *Authentication → URL Configuration*
+   - *Site URL* : l'adresse Vercel de Milo (ex. `https://milo-app.vercel.app`)
+   - *Redirect URLs* : la même adresse + `/**`
+4. **E-mail** : *Authentication → Providers → Email* activé (confirmation par e-mail conseillée). Les modèles d'e-mail peuvent être traduits en français dans *Authentication → Email Templates*.
+5. **Google** :
+   - console.cloud.google.com → *APIs & Services → Credentials → Create credentials → OAuth client ID* (type *Web application*)
+   - *Authorized redirect URI* : `https://<projet>.supabase.co/auth/v1/callback` (affichée dans Supabase, *Providers → Google*)
+   - copier le *Client ID* et le *Client secret* dans Supabase → *Providers → Google* → activer
+6. **Vercel** : *Settings → Environment Variables*
+   - `SUPABASE_URL` = *Project Settings → API → Project URL*
+   - `SUPABASE_ANON_KEY` = *Project Settings → API → anon / publishable key*
+   - puis *Redeploy*.
+7. **Apple (plus tard)** : compte Apple Developer requis. Créer un *Services ID* + une clé *Sign in with Apple*, les renseigner dans Supabase → *Providers → Apple*, puis ajouter `AUTH_APPLE=1` dans Vercel.
+
+### Fonctionnement de la synchronisation
+
+- Chaque modification est envoyée au compte 1,5 s après la dernière action ; les données du compte sont relues à l'ouverture et au retour sur l'app.
+- Première connexion sur un appareil qui a déjà des données différentes : l'utilisateur choisit lesquelles garder.
+- Déconnexion : les données restent sur l'appareil. « Supprimer les données du compte » efface la ligne côté serveur.
