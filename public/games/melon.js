@@ -16,7 +16,7 @@
 
   /* ---------- Constantes du bocal (unités logiques) ---------- */
   const W = 360, H = 500, LIM = 60, DROP_Z = 86, WALL = 10;
-  const PH = { g: 2300, sub: 8, damp: 0.9994, rest: 0.22, fr: 0.035, floorFr: 0.92, relax: 0.85 };
+  const PH = { g: 2300, sub: 8, damp: 0.9994, rest: 0.22, fr: 0.035, floorFr: 0.92, relax: 0.85, growSoft: 0.8 };
   const GAME = { cooldown: 0.42, dangerTime: 2.6, settleAge: 1.3, comboWin: 0.8 };
   const FACE = { idle: 'v3_face', joie: 'v3_heureux', wow: 'v3_alerte', bravo: 'v3_felicitations', focus: 'v3_determine', amour: 'v3_amour', dodo: 'v3_sommeil', clin: 'v3_clin' };
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -50,6 +50,7 @@
             if (d2 >= rr * rr) { if (a.tier === b.tier && d2 < (rr + 1.2) * (rr + 1.2) && this.onTouch) this.onTouch(a, b); continue; }
             const d = Math.sqrt(d2) || 0.0001, nx = dx / d, ny = dy / d, ov = (rr - d) * PH.relax, ta = b.m / (a.m + b.m), tb = 1 - ta;
             a.x -= nx * ov * ta; a.y -= ny * ov * ta; b.x += nx * ov * tb; b.y += ny * ov * tb;
+            if (a.r < a.R - 0.5 || b.r < b.R - 0.5) { const k = PH.growSoft; a.px -= nx * ov * ta * k; a.py -= ny * ov * ta * k; b.px += nx * ov * tb * k; b.py += ny * ov * tb * k; }
             const rvx = (b.x - b.px) - (a.x - a.px), rvy = (b.y - b.py) - (a.y - a.py), vn = rvx * nx + rvy * ny;
             const tx = rvx - vn * nx, ty = rvy - vn * ny;
             a.px -= tx * PH.fr * ta; a.py -= ty * PH.fr * ta; b.px += tx * PH.fr * tb; b.py += ty * PH.fr * tb;
@@ -88,7 +89,7 @@
         const vx = ((a.x - a.px) * a.m + (b.x - b.px) * b.m) / m, vy = ((a.y - a.py) * a.m + (b.y - b.py) * b.m) / m;
         if (a.tier >= top) { onMerge(a.tier, x, y, null); continue; }
         const nb = st.world.add(a.tier + 1, x, y, Math.max(a.r, b.r));
-        nb.px = x - vx * 0.3; nb.py = y - vy * 0.3; nb.ang = (a.ang + b.ang) / 2; nb.psv = 5.5; nb.age = 0.3; nb.born = st.t;
+        nb.px = x - vx * 0.3; nb.py = y - vy * 0.3; nb.ang = (a.ang + b.ang) / 2; nb.psv = 3.6; nb.age = 0.3; nb.born = st.t;
         onMerge(a.tier, x, y, nb);
       }
       st.world.bodies = st.world.bodies.filter((b) => !b.dead);
@@ -299,7 +300,9 @@
   }
   function drawBody(b, alpha) {
     const spr = sprite(b.tier); if (!spr) return;
-    const c = ctx, s = V.s, sc = (b.r / b.R) * (1 + b.ps);
+    const c = ctx, s = V.s;
+    let ps = b.ps; if (ps > 0 && b.R) ps = Math.min(ps, Math.max(0, Math.min(b.x, W - b.x, H - b.y) / b.r - 1));
+    const sc = (b.r / b.R) * (1 + ps);
     c.save(); c.globalAlpha = alpha;
     c.translate(V.bx + b.x * s, V.by + b.y * s);
     if (b.sq > 0.004) { c.rotate(b.sqA); c.scale(1 - b.sq, 1 + b.sq * 0.7); c.rotate(-b.sqA); }
