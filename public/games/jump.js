@@ -12,7 +12,7 @@
   /* ---------- Visuels de Milo (remplaçables) ----------
      run : planche de 12 images de course (deux foulées, visuel officiel détouré).
      ax / ay : point de contact au sol dans une image (fraction). */
-  const SHEET = { src: 'jump/run.webp', n: 12, fw: 242, fh: 264, ax: 0.55, ay: 0.977 };
+  const SHEET = { src: 'jump/run12.webp', n: 12, fw: 242, fh: 264, ax: 0.55, ay: 0.977 };
   const FACES = { focus: 'pl3_determine', joie: 'pl3_joie', wow: 'pl3_alerte', ko: 'pl3_sommeil', fete: 'pl3_fete' };
 
   /* ---------- Réglages (unités logiques ; largeur visible = 520) ---------- */
