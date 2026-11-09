@@ -238,7 +238,7 @@
   // garde-fou : un même son ne se superpose pas à lui-même trop souvent
   const GAP = { select: 40, deselect: 40, tap: 40, land: 60, match: 35, jelly: 60, iceCrack: 50, iceBreak: 60, laser: 45, bomb: 70, makeStriped: 80, makeBomb: 80, makeRow: 80, makeCol: 80, bonus: 40, tick: 120 };
   // équilibrage : volume général des effets et correction par son (1 = inchangé)
-  const SFX_GAIN = 2.8, MUSIC_GAIN = 2.6;
+  const SFX_GAIN = 2.8, MUSIC_GAIN = 1.8;
   const VOL = { swap: 1.8, nope: 1.6, select: 1.25, laser: 1.6, rainbow: 1.8, makeRainbow: 1.6, chain: 1.4, makeStriped: 1.25, cross: 1.5,
     bomb: 0.7, bigbomb: 0.63, megaline: 0.8, mega: 0.75, hint: 0.8, iceCrack: 1.25, goal: 1.25, record: 1.25 };
   function run(name, p) { AU.vk = VOL[name] || 1; try { SFX[name](p || {}); } catch (e) {} finally { AU.vk = 1; } }
@@ -250,13 +250,31 @@
   // même chose avec un décalage (secondes), sans garde-fou : pour les sons volontairement en rafale
   function sfxAt(dt, name, p) { if (!audio() || (!AU.offline && MG.sfx.muted) || !SFX[name]) return; later(dt, () => run(name, p)); }
 
-  /* ---------- Musique : boucle « bonbon » de 8 mesures (do majeur, 104 bpm) ---------- */
+  /* ---------- Musique : boucle pop « bonbon » de 16 mesures (do majeur, 116 bpm) ----------
+     Partie A (mesures 1-8) puis partie B (9-16). Batterie complète d’un bout à l’autre :
+     le rythme ne retombe jamais. Mélodie = [pas (0-15), note MIDI, durée en pas]. */
+  const A_MEL = [[76, 0, 79, 0, 84, 83, 79, 0], [81, 0, 79, 76, 0, 72, 76, 0], [77, 0, 81, 0, 84, 0, 81, 79], [79, 0, 74, 0, 71, 74, 79, 0],
+    [84, 0, 83, 79, 0, 76, 79, 0], [79, 0, 76, 0, 71, 0, 76, 79], [81, 0, 84, 0, 81, 77, 81, 0], [79, 81, 83, 0, 86, 0, 0, 0]]
+    .map((bar) => bar.map((m, i) => (m ? [i * 2, m, 2] : null)).filter(Boolean));
+  const B_MEL = [
+    [[0, 81, 2], [3, 84, 1], [4, 81, 2], [6, 79, 2], [8, 76, 3], [11, 79, 1], [12, 81, 4]],
+    [[0, 77, 2], [2, 81, 2], [4, 84, 3], [7, 81, 1], [8, 77, 2], [10, 79, 2], [12, 81, 4]],
+    [[0, 79, 2], [2, 76, 2], [4, 79, 2], [6, 84, 2], [8, 88, 3], [11, 86, 1], [12, 84, 4]],
+    [[0, 83, 3], [3, 81, 1], [4, 79, 2], [6, 74, 2], [8, 79, 2], [10, 81, 2], [12, 83, 4]],
+    [[0, 84, 2], [2, 83, 1], [3, 81, 1], [4, 88, 4], [8, 84, 2], [10, 83, 2], [12, 81, 4]],
+    [[0, 81, 2], [2, 84, 2], [4, 81, 2], [6, 77, 2], [8, 81, 2], [10, 84, 2], [12, 84, 4]],
+    [[0, 83, 2], [2, 86, 2], [4, 86, 4], [8, 83, 2], [10, 81, 2], [12, 79, 4]],
+    [[0, 83, 2], [2, 86, 2], [4, 79, 2], [6, 81, 1], [7, 83, 1], [8, 86, 6]]];
   const MUS = {
-    bpm: 104,
-    chords: [[60, 64, 67], [57, 60, 64], [57, 60, 65], [55, 59, 62], [60, 64, 67], [55, 59, 64], [57, 60, 65], [55, 59, 62]],
-    bass: [48, 45, 53, 55, 48, 52, 53, 55],
-    mel: [[76, 0, 79, 0, 84, 83, 79, 0], [81, 0, 79, 76, 0, 72, 76, 0], [77, 0, 81, 0, 84, 0, 81, 79], [79, 0, 74, 0, 71, 74, 79, 0],
-      [84, 0, 83, 79, 0, 76, 79, 0], [79, 0, 76, 0, 71, 0, 76, 79], [81, 0, 84, 0, 81, 77, 81, 0], [79, 81, 83, 0, 86, 0, 0, 0]]
+    bpm: 116,
+    // A : Do La- Fa Sol Do Mi- Fa Sol | B : La- Fa Do Sol La- Fa Sol Sol
+    chords: [[60, 64, 67], [57, 60, 64], [57, 60, 65], [55, 59, 62], [60, 64, 67], [55, 59, 64], [57, 60, 65], [55, 59, 62],
+      [57, 60, 64], [57, 60, 65], [55, 60, 64], [55, 59, 62], [57, 60, 64], [57, 60, 65], [55, 59, 62], [55, 59, 62]],
+    bass: [36, 45, 41, 43, 36, 40, 41, 43, 45, 41, 36, 43, 45, 41, 43, 43],
+    mel: A_MEL.concat(B_MEL),
+    // basse syncopée : [pas, intervalle, durée]
+    bassPat: [[0, 0, 3], [3, 0, 1], [6, 12, 2], [8, 0, 3], [11, 0, 1], [12, 7, 2], [14, 12, 2]],
+    hatVel: [0.55, 0.22, 0.9, 0.3]
   };
   const Music = {
     on: false, timer: 0, next: 0, step: 0, mode: 'map', boostV: 0,
@@ -273,23 +291,35 @@
       if (!this.next || this.next < ac.currentTime) this.next = ac.currentTime + 0.06;
       while (this.next < ac.currentTime + 0.25) { this.play(this.step, this.next); this.next += spb; this.step++; }
     },
+    // instruments
+    kick(t, v) { const B = AU.music; osc(150, { at: t, f2: 46, ft: 0.11, d: 0.3, v: 0.4 * v, a: 0.002, bus: B }); osc(300, { at: t, f2: 95, ft: 0.04, d: 0.08, v: 0.13 * v, type: 'triangle', a: 0.001, bus: B }); noise({ at: t, d: 0.014, v: 0.05 * v, f: 3500, type: 'highpass', a: 0.001, bus: B }); },
+    clap(t, v) { const B = AU.music; [0, 0.011, 0.023].forEach((o, k) => noise({ at: t + o, d: k === 2 ? 0.17 : 0.022, v: 0.12 * v, f: 1700, type: 'bandpass', q: 0.9, a: 0.001, bus: B })); osc(230, { at: t, f2: 170, d: 0.09, v: 0.05 * v, type: 'triangle', bus: B }); },
+    hat(t, v, open) { noise({ at: t, d: open ? 0.22 : 0.035, v: (open ? 0.05 : 0.055) * v, f: open ? 7000 : 8500, type: 'highpass', a: 0.001, bus: AU.music }); },
     play(i, t) {
-      const spb = 60 / MUS.bpm / 4, loop = Math.floor(i / 128) % 2, st = i % 128, bar = st >> 4, s = st & 15, map = this.mode === 'map';
-      const I = (map ? 0 : 0.35) + this.boostV, ch = MUS.chords[bar], M = { bus: AU.music };
-      // basse
-      if (s === 0) osc(mf(MUS.bass[bar]), Object.assign({ at: t, d: spb * 5, v: 0.1, type: 'triangle', lp: 700, a: 0.01 }, M));
-      if (s === 8) osc(mf(MUS.bass[bar] + 7), Object.assign({ at: t, d: spb * 3, v: 0.08, type: 'triangle', lp: 700, a: 0.01 }, M));
-      if (s === 14 && bar % 2 === 1) osc(mf(MUS.bass[bar] + 12), Object.assign({ at: t, d: spb * 1.5, v: 0.05, type: 'triangle', lp: 800 }, M));
-      // accords façon marimba sur les temps 2 et 4
-      if (s === 4 || s === 12) ch.forEach((n, j) => pluck(mf(n), Object.assign({ at: t + j * 0.008, v: 0.03, d: 0.35 }, M)));
-      // mélodie (célesta) ; 2e tour : arpège puis mélodie au glockenspiel
-      const melOn = loop === 0 || bar >= 4;
-      if (s % 2 === 0 && melOn) { const n = MUS.mel[bar][s / 2]; if (n) bell(mf(n), Object.assign({ at: t, d: 0.55, v: map ? 0.028 : 0.04, ratio: loop ? 3.5 : 2, idx: 1 }, M)); }
-      if (loop === 1 && bar < 4 && s % 2 === 1) pluck(mf(ch[(s >> 1) % 3] + 12), Object.assign({ at: t, v: 0.032, d: 0.22 }, M));
-      // pulsation (shaker) et étincelles quand ça s'emballe
-      if (I > 0.2 && s % 4 === 2) noise(Object.assign({ at: t, d: 0.05, v: 0.012 + I * 0.018, f: 7500, type: 'highpass' }, M));
-      if (I > 0.6 && s % 2 === 1) noise(Object.assign({ at: t, d: 0.03, v: 0.008 * I, f: 9000, type: 'highpass' }, M));
-      if (I > 0.7 && s % 4 === 0) bell(mf(ch[(s >> 2) % 3] + 24), Object.assign({ at: t, d: 0.4, v: 0.012 * Math.min(1.5, I), ratio: 3.5 }, M));
+      const spb = 60 / MUS.bpm / 4, st = i % 256, bar = st >> 4, s = st & 15, sec = bar & 7, map = this.mode === 'map', B = AU.music;
+      const I = (map ? 0 : 0.35) + this.boostV, ch = MUS.chords[bar], root = MUS.bass[bar];
+      // — batterie —
+      if (map ? s === 0 || s === 8 : s % 4 === 0) this.kick(t, map ? 0.7 : 1);
+      const fill = sec === 7 && s >= 12;
+      if (fill) this.clap(t, 0.35 + (s - 12) * 0.2);
+      else if (s === 4 || s === 12) this.clap(t, map ? 0.6 : 1);
+      const open = s === 14 && bar % 2 === 1;
+      if (open) this.hat(t, 1, true);
+      else if (!map || s % 2 === 0) this.hat(t, MUS.hatVel[s % 4] * (map ? 0.7 : 1) * (1 + Math.min(0.5, this.boostV * 0.5)), false);
+      if (s === 0 && (sec === 0)) noise({ at: t, d: 1.4, v: 0.045, f: 4500, type: 'highpass', bus: B });
+      // — basse syncopée (dents de scie filtrées : audible même sur un haut-parleur de téléphone) —
+      MUS.bassPat.forEach(([ps, iv, len]) => { if (ps === s) { const f = mf(root + iv), d = len * spb * 0.95; osc(f, { at: t, d, v: 0.11, type: 'sawtooth', lp: 1600, lp2: 280, a: 0.004, bus: B }); osc(f, { at: t, d, v: 0.06, type: 'triangle', a: 0.004, bus: B }); } });
+      // — nappe douce + accords piqués sur les contretemps —
+      if (s === 0) ch.forEach((n) => osc(mf(n), { at: t, d: spb * 16, v: 0.016, type: 'triangle', lp: 1500, a: 0.08, h: spb * 10, bus: B }));
+      if (s % 4 === 2) ch.forEach((n, k) => osc(mf(n + 12), { at: t + k * 0.004, d: 0.15, v: 0.024, type: 'square', lp: 2800, lp2: 700, a: 0.002, bus: B }));
+      // — mélodie : célesta doublée d’un lead carré doux —
+      MUS.mel[bar].forEach(([ps, m, len]) => {
+        if (ps !== s) return; const f = mf(m), d = len * spb;
+        bell(f, { at: t, d: Math.max(0.45, d), v: map ? 0.035 : 0.05, ratio: 2, idx: 1, bus: B });
+        osc(f, { at: t, d: d * 0.95, v: map ? 0.012 : 0.02, type: 'square', lp: 2200, a: 0.006, h: d * 0.45, bus: B });
+      });
+      // — quand les cascades s’enchaînent : arpège scintillant —
+      if (I > 0.7 && s % 2 === 0) bell(mf(ch[(s >> 1) % 3] + 24), { at: t, d: 0.3, v: 0.016 * Math.min(1.5, I), ratio: 2, idx: 0.8, bus: B });
     }
   };
 
