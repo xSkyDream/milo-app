@@ -886,6 +886,8 @@
     if (e.cancelable) e.preventDefault();
     UI.ptr.add(e.pointerId); inputDown();
   }
+  // iOS : sans ça, un appui long ouvre la loupe / le menu « Copier · Chercher » et bloque le saut
+  function onTouch(e) { if (e.cancelable && !e.target.closest('button, .dh-menu .dh-scr, .gmodal, .dh-pauseov')) e.preventDefault(); }
   function onUp(e) { if (!UI.ptr.has(e.pointerId)) return; UI.ptr.delete(e.pointerId); inputUp(); }
   function onClick(e) {
     const b = e.target.closest('[data-dh]'); if (!b) return;
@@ -950,7 +952,7 @@
       loadImgs(); V.cw = V.ch = 0; BG = {}; sprKey = ''; st = null; menu = null; parts.length = 0; rings.length = 0;
       makeMenu(); layout(); showScreen('home');
       try { ro = new ResizeObserver(() => { clearTimeout(rTimer); rTimer = setTimeout(layout, 80); }); ro.observe(root); } catch (e) { window.addEventListener('resize', layout); }
-      root.addEventListener('pointerdown', onDown); window.addEventListener('pointerup', onUp); window.addEventListener('pointercancel', onUp);
+      root.addEventListener('pointerdown', onDown); root.addEventListener('touchstart', onTouch, { passive: false }); window.addEventListener('pointerup', onUp); window.addEventListener('pointercancel', onUp);
       root.addEventListener('click', onClick);
       document.addEventListener('keydown', onKey); document.addEventListener('keyup', onKey); document.addEventListener('visibilitychange', onVis);
       last = 0; raf = requestAnimationFrame(loop);

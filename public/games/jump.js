@@ -628,6 +628,7 @@
     if (e.cancelable) e.preventDefault();
     press();
   }
+  function onTouch(e) { if (e.cancelable && !e.target.closest('button, .jp-menu, .gmodal')) e.preventDefault(); }
   function onUp() { release(); }
   function onClick(e) {
     const b = e.target.closest('[data-jp]'); if (!b) return;
@@ -669,7 +670,7 @@
       loadImgs(); V.cw = V.ch = 0; L = {}; st = null;
       newRun(); showMenu(); layout(); updHud();
       try { ro = new ResizeObserver(() => { clearTimeout(rTimer); rTimer = setTimeout(layout, 80); }); ro.observe(root); } catch (e) { window.addEventListener('resize', layout); }
-      root.addEventListener('pointerdown', onDown); root.addEventListener('pointerup', onUp); root.addEventListener('pointercancel', onUp); root.addEventListener('pointerleave', onUp);
+      root.addEventListener('pointerdown', onDown); root.addEventListener('touchstart', onTouch, { passive: false }); root.addEventListener('pointerup', onUp); root.addEventListener('pointercancel', onUp); root.addEventListener('pointerleave', onUp);
       root.addEventListener('click', onClick);
       document.addEventListener('keydown', onKey); document.addEventListener('keyup', onKey); document.addEventListener('visibilitychange', onVis);
       last = 0; raf = requestAnimationFrame(loop);

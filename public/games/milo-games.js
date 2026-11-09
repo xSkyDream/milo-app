@@ -311,6 +311,7 @@
   .gscreen{position:absolute;inset:0;z-index:65;display:flex;justify-content:center;overflow:hidden;touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;opacity:0;transform:scale(1.03);transition:opacity .25s ease,transform .3s cubic-bezier(.22,1,.36,1)}
   .gscreen.in{opacity:1;transform:none}
   .gscreen img{-webkit-user-drag:none;user-select:none;pointer-events:none}
+  .gscreen :not(input):not(textarea){-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
   .gframe{position:relative;width:100%;max-width:480px;height:100%;display:flex;flex-direction:column}
   .gfx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:40}
   .gtop{display:flex;align-items:center;gap:10px;padding:12px 14px 6px;position:relative;z-index:5}
