@@ -13,6 +13,7 @@ const { chromium, devices } = require('playwright'); const srv = require('./srv'
     const dbg = MiloGames.cur.g._debug, out = [];
     const wait = (ms) => new Promise(r => setTimeout(r, ms));
     for (let wi = 0; wi < dbg.CONTENT.length; wi++) for (let li = 0; li < dbg.CONTENT[wi].length; li++) {
+      if (dbg.CONTENT[wi][li].boss) continue;
       dbg.start(wi, li); await wait(120);
       const G = dbg.G(); dbg.setInv(true);
       G.doors.forEach((d) => { G.grid[d.y][d.x] = ' '; }); G.doors.length = 0;

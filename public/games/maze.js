@@ -23,7 +23,11 @@
   // 12 mondes (games/maze-worlds.js) ; leurs niveaux viennent de games/maze-levels.js (mondes d'origine) ou de w.levels
   const WORLDS = window.MILO_MAZE_WORLDS || [];
   const TIERS = window.MILO_MAZE_TIERS || {};
-  const CONTENT = WORLDS.map((w) => { const src = w.legacy && LV.find((x) => x.id === w.legacy); return src ? src.levels : w.levels || []; });
+  const EXTRA = window.MILO_MAZE_EXTRA || {}; // niveaux V2 (games/maze-levels-v2.js)
+  const LEGACY_N = WORLDS.map((w) => { const src = w.legacy && LV.find((x) => x.id === w.legacy); return src ? src.levels.length : 0; });
+  const CONTENT = WORLDS.map((w) => { const src = w.legacy && LV.find((x) => x.id === w.legacy); return (src ? src.levels : w.levels || []).concat((EXTRA[w.id] || {}).main || []); });
+  const CHAL = WORLDS.map((w) => (EXTRA[w.id] || {}).defis || []);
+  const SECRET = WORLDS.map((w) => (EXTRA[w.id] || {}).secret || null);
   const wIdx = (id) => WORLDS.findIndex((w) => w.id === id);
   const hasContent = (wi) => !!(CONTENT[wi] && CONTENT[wi].length);
   const STATES = ['idle', 'prep', 'run', 'accel', 'jump', 'collect', 'shield', 'teleport', 'hurt', 'win', 'fail'];
@@ -63,7 +67,7 @@
     { id: 'magStart', name: 'Aimant de départ', desc: 'Chaque niveau commence avec 4 s d’aimant', max: 1, price: [500] },
     { id: 'shields', name: 'Boucliers de secours ×3', desc: 'Un bouclier offert au début de 3 niveaux', max: 99, price: [250], stack: 3 }
   ];
-  const V0 = 9, VMAX = 19, ACC_T = 0.12, R_MILO = 0.3;
+  const V0 = 9, VMAX = 19, ACC_T = 0.12, R_MILO = 0.3, CHEST_COINS = 20, BOSS_COINS = 150;
   const TIMED = { x: { per: 2.6, on: 1.05, warn: 0.4 }, z: { per: 2.3, on: 0.9, warn: 0.35 }, k: { per: 3.1, on: 1.4, warn: 0.5 } };
   const DOOR = { per: 3.4, open: 2.0 };
 
@@ -78,12 +82,15 @@
   const IC = {
     back: '<path d="m15 18-6-6 6-6"/>', map: '<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/>', skins: '<circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/>',
     shop: '<path d="M4 7h16l-1.5 12a2 2 0 0 1-2 1.8H7.5a2 2 0 0 1-2-1.8z"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/>', coin: '<circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10h4a1.5 1.5 0 0 1 0 3h-3a1.5 1.5 0 0 0 0 3h4"/>',
-    swipe: '<path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"/><path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4" opacity=".35"/>', check: '<path d="M20 6 9 17l-5-5"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', next: '<path d="m9 18 6-6-6-6"/>'
+    swipe: '<path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"/><path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4" opacity=".35"/>', check: '<path d="M20 6 9 17l-5-5"/>', gem: '<path d="M6 3h12l3 6-9 12L3 9z"/><path d="M3 9h18"/>', key: '<circle cx="8" cy="12" r="4"/><path d="M12 12h9M18 12v3M15 12v2"/>', heart: '<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/>', relic: '<circle cx="12" cy="12" r="4"/><ellipse cx="12" cy="12" rx="9.5" ry="3.5"/>', chest: '<path d="M4 10h16v9H4zM4 10a8 5 0 0 1 16 0"/><path d="M11 13h2"/>', trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', next: '<path d="m9 18 6-6-6-6"/>'
   };
   const ico = (n, c) => IC[n] ? `<svg class="gi ${c || ''}" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>` : MG.icon(n, c);
   // clé PERMANENTE d'un niveau : "idDuMonde:index" (ex. "ruines:3")
   const lvKey = (wi, li) => WORLDS[wi].id + ':' + li;
-  const levelAt = (wi, li) => CONTENT[wi] && CONTENT[wi][li];
+  // li : numéro (niveau principal), 'd0'..'d2' (défis) ou 's' (niveau secret)
+  const levelAt = (wi, li) => (typeof li === 'number' ? CONTENT[wi] && CONTENT[wi][li] : li === 's' ? SECRET[wi] : li && li[0] === 'd' ? CHAL[wi][+li.slice(1)] : null);
+  const lvLabel = (wi, li) => { const L = levelAt(wi, li); return typeof li === 'number' ? (L && L.boss ? 'Boss' : `Niveau ${li + 1}`) : li === 's' ? 'Niveau secret' : `Défi ${+li.slice(1) + 1}`; };
+  const col = (wi) => { const d = data(), id = WORLDS[wi].id; d.col = d.col || {}; return d.col[id] || (d.col[id] = {}); };
   // Sauvegarde v1 ("numéroDuMonde-niveau") → v2 ("id:niveau"), sans rien perdre.
   // Idempotente : si un ancien appareil réécrit l'ancien format, ses résultats sont refusionnés (meilleurs scores gardés).
   // Copie de secours de la v1 conservée dans d.bak.v1.
@@ -230,7 +237,10 @@
       wi, li, L, W, H, grid, pal: WORLDS[wi].pal, time: 0, state: 'ready', coinsTotal: 0, got: 0, coinStreak: 0, exit: null,
       milo: { x: 0, y: 0, d: 2, moving: false, prog: 0, mt: 0, sp: 0, face: 1, pose: 'idle', poseT: 0, sq: 0, sqDir: 1, hitT: 0, phase: 0, px: 0, py: 0, lpx: 0, lpy: 0, prep: false, telT: 0, invT: 0, collected: 0, ghostY: 0 },
       bon: { shield: false, magnet: 0, speed: 0, slow: 0, tele: 0 }, buf: null, ents: [], timed: [], doors: [], torches: [], parts: [], trail: [], flyers: [], texts: [],
-      cam: 0, camT: 0, shake: 0, hits: 0, deaths: 0, startY: 0, portals: {}, dead: false, endT: 0, slowK: 1, magnetR: 2.6, bonusDur: 1 + 0.2 * ((data().upg || {}).dur || 0)
+      cam: 0, camT: 0, shake: 0, hits: 0, deaths: 0, startY: 0, portals: {}, dead: false, endT: 0, slowK: 1, magnetR: 2.6, bonusDur: 1 + 0.2 * ((data().upg || {}).dur || 0),
+      // V2 : interrupteurs (tog), grilles (gate), passages révélés, collection, règles de défi, cœurs, boss
+      tog: 0, gate: false, rev: new Set(), crystals: 0, crTotal: 0, key: false, relic: false, chests: 0, rule: L.rule || null, exitOpen: !(L.rule && L.rule.t === 'allcoins'),
+      hearts: L.boss ? 3 : 1, maxHearts: L.boss ? 3 : 1, boss: null, proj: [], warns: [], beams: []
     };
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const c = grid[y][x];
@@ -240,7 +250,9 @@
       else if (c >= '1' && c <= '4') (g.portals[c] = g.portals[c] || []).push([x, y]);
       else if (c === 'D') g.doors.push({ x, y, ph: hash(x, y, 9), open: 1, hold: false, wasOpen: true });
       else if (TIMED[c]) g.timed.push({ x, y, c, ph: 0 });
+      else if (c === '*') g.crTotal++;
     }
+    if (L.boss) g.boss = { kind: L.boss.kind, name: L.boss.name, hp: L.boss.hp, max: L.boss.hp, phase: 0, next: 2.4, ti: 0, targets: L.boss.targets, hitT: 0, dead: false, deadT: 0, n: 0, calm: 0, eye: 0 };
     // phases : les pièges contigus d'un même type se déclenchent ensemble
     const seen = new Set();
     g.timed.forEach((t) => { if (seen.has(t)) return; const grp = [t], q = [t]; seen.add(t); while (q.length) { const a = q.pop(); g.timed.forEach((b) => { if (!seen.has(b) && b.c === a.c && Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1) { seen.add(b); grp.push(b); q.push(b); } }); } const ph = hash(t.x, t.y, 3); grp.forEach((b) => (b.ph = ph)); });
@@ -251,13 +263,18 @@
     g.cam = clamp(g.milo.y + 0.5 - viewRows() * 0.62, 0, Math.max(0, H - viewRows())); g.camT = g.cam;
     const u = data().upg || {};
     if (u.magStart) g.bon.magnet = 4;
-    if ((u.shields || 0) > 0 && u.autoShield !== false) { u.shields--; g.bon.shield = true; g.freeShield = true; }
+    if ((u.shields || 0) > 0 && u.autoShield !== false && !(g.rule && g.rule.t === 'nohit')) { u.shields--; g.bon.shield = true; g.freeShield = true; }
     return g;
   }
   const viewRows = () => (UI.vh || 700) / (UI.cs || 32);
   const cell = (x, y) => (G.grid[y] && G.grid[y][x] !== undefined ? G.grid[y][x] : '#');
   function doorOpen(x, y) { const d = G.doors.find((q) => q.x === x && q.y === y); return !d || d.open > 0.5; }
-  function passable(x, y) { const c = cell(x, y); if (c === '#') return false; if (c === 'D') return doorOpen(x, y); return true; }
+  function passable(x, y) {
+    const c = cell(x, y); if (c === '#') return false; if (c === 'D') return doorOpen(x, y);
+    if (c === 'a') return G.tog === 1; if (c === 'b') return G.tog === 0; if (c === 'g') return G.gate; if (c === 'E') return G.exitOpen;
+    return true;
+  }
+  const solidAt = (x, y) => { const c = cell(x, y); return c === '#' || (c === 'H' && !G.rev.has(y * G.W + x)) || (c === 'a' && G.tog === 0) || (c === 'b' && G.tog === 1) || (c === 'g' && !G.gate); };
   const timedState = (t, time) => { const T = TIMED[t.c], sl = G.slowK, per = T.per / sl, ph = ((time + t.ph * per) % per) / per, onF = T.on / T.per, warnF = T.warn / T.per; return ph < onF ? 'on' : ph > 1 - warnF ? 'warn' : 'off'; };
 
   function launch(d) {
@@ -304,6 +321,14 @@
     if (c === '.') collectCoin(x, y);
     else if (BONUS[c]) pickBonus(c, x, y);
     else if (c === 'E') { win(); return; }
+    else if (c === 'o') { G.tog ^= 1; sfx('door'); fxBurst(x + 0.5, y + 0.5, [G.tog ? '#4fa8ff' : '#ff4f6d', '#ffffff'], 10, 3); vibrate(8); }
+    else if (c === 'P') { if (!G.gate) { G.gate = true; G.grid[y][x] = 'p'; sfx('door'); G.shake = Math.max(G.shake, 0.25); fxBurst(x + 0.5, y + 0.5, ['#ffd84d', '#ffffff'], 16, 3.5); floatText('La grille s’ouvre !', x, y - 0.6, '#ffd84d'); vibrate(15); } }
+    else if (c === '*') { G.grid[y][x] = ' '; G.crystals++; sfx('star', Math.min(2, G.crystals - 1)); fxBurst(x + 0.5, y + 0.5, ['#d58bff', '#ffffff', '#8a5cff'], 18, 3.5); floatText(`Cristal ${G.crystals}/${G.crTotal}`, x, y - 0.5, '#e2b0ff'); hud(); }
+    else if (c === 'K') { G.grid[y][x] = ' '; G.key = true; sfx('win'); fxBurst(x + 0.5, y + 0.5, ['#ffd84d', '#ffffff'], 26, 4.5); floatText('Clé secrète !', x, y - 0.6, '#ffd84d', true); vibrate(30); hud(); }
+    else if (c === 'Q') { G.grid[y][x] = ' '; G.relic = true; sfx('win'); fxBurst(x + 0.5, y + 0.5, ['#5ef2ff', '#ffd84d', '#ffffff'], 30, 5); floatText('Relique trouvée !', x, y - 0.6, '#7af6ff', true); vibrate(30); hud(); }
+    else if (c === 'C') { G.grid[y][x] = ' '; G.chests++; sfx('bonus'); fxBurst(x + 0.5, y + 0.5, ['#ffd84d', '#ffb340', '#ffffff'], 22, 4); floatText('Coffre +' + CHEST_COINS, x, y - 0.6, '#ffd84d', true); }
+    else if (c === 'H' && !G.rev.has(y * G.W + x)) { G.rev.add(y * G.W + x); buildChunks(); sfx('portal'); fxBurst(x + 0.5, y + 0.5, ['#ffffff', G.pal.edge], 18, 3); floatText('Passage secret !', x, y - 0.6, '#ffffff', true); }
+    if (G.boss && !G.boss.dead) { const t = G.boss.targets[G.boss.ti]; if (t && t[0] === x && t[1] === y) bossHit(); }
     else if (c in BOOSTDIR && !quiet) {
       const nd = BOOSTDIR[c]; if (nd !== m.d) { m.d = nd; if (nd === 1) m.face = 1; else if (nd === 3) m.face = -1; }
       m.sp = VMAX * 1.15; m.mt = ACC_T; m.pose = 'jump'; m.poseT = 0.2; sfx('boost'); fxBurst(x + 0.5, y + 0.5, ['#5ef2ff', '#ffffff'], 8, 2.5); G.trailBreak = true;
@@ -375,11 +400,19 @@
     let danger = 0;
     G.ents.forEach((e) => { updEnt(e, dt, T); const dd = Math.hypot(e.fx - m.px, e.fy - m.py); if (dd < 3.5) danger = Math.max(danger, 1 - dd / 3.5); if (e.chase) danger = 1; });
     Music.target = clamp(danger * 1.2 + (G.bon.speed > 0 ? 0.6 : 0), 0, 1);
+    // règles de défi
+    if (G.rule && G.rule.t === 'timer' && G.state === 'play' && G.time > G.rule.s) die('Temps écoulé !');
+    if (!G.exitOpen && G.got >= G.coinsTotal && G.exit) { G.exitOpen = true; sfx('win'); floatText('Sortie ouverte !', G.exit[0], G.exit[1] + 0.6, '#8ff0c0', true); }
+    // boss, alertes, projectiles, rayons
+    if (G.boss) updBoss(dt);
+    for (let i = G.warns.length - 1; i >= 0; i--) { const w = G.warns[i]; if (G.state === 'play') w.t += dt * G.slowK; if (w.t >= w.dur) { G.warns.splice(i, 1); fireWarn(w); } }
+    for (let i = G.proj.length - 1; i >= 0; i--) { const p = G.proj[i]; p.y += p.vy * dt * G.slowK; p.rot += dt * 9; const ty = Math.floor(p.y + 0.3); if (ty >= G.H - 1 || solidAt(Math.floor(p.x), ty)) { G.proj.splice(i, 1); fxBurst(p.x, ty - 0.1, ['#b9a8d8', '#6b5a8a', '#ffffff'], 10, 3); if (Math.abs(ty - m.py) < 9) sfx('bump', 0.6); } }
+    for (let i = G.beams.length - 1; i >= 0; i--) { const bm = G.beams[i]; bm.t += dt; if (bm.t > bm.dur) G.beams.splice(i, 1); }
     // collisions
     if (G.state === 'play' && m.invT <= 0) checkHits(T);
     // caméra : Milo un peu sous le centre (on monte), anticipation dans le sens du mouvement
     const vr = viewRows(), look = m.moving ? DIRS[m.d][1] * 2.2 : 0;
-    G.camT = clamp(m.py + 0.5 + look - vr * 0.58, -0.5, Math.max(-0.5, G.H - vr + 0.5));
+    G.camT = G.boss ? G.bossCam || 0 : clamp(m.py + 0.5 + look - vr * 0.58, -0.5, Math.max(-0.5, G.H - vr + 0.5));
     G.cam += (G.camT - G.cam) * (1 - Math.exp(-dt * (m.moving ? 7 : 4)));
     G.shake *= Math.pow(0.002, dt);
     // particules / traînée
@@ -439,6 +472,8 @@
       const c = cell(x, y); if (!TIMED[c]) continue;
       const t = G.timed.find((q) => q.x === x && q.y === y); if (t && timedState(t, T) === 'on' && circRect(cx, cy, r, x + 0.14, y + 0.14, x + 0.86, y + 0.86)) return c === 'x' ? 'Les pics !' : c === 'z' ? 'Zzzap !' : 'Cristal !';
     }
+    for (const p of G.proj) if (Math.hypot(p.x - cx, p.y - cy) < r + p.r) return 'Un rocher !';
+    for (const bm of G.beams) { if (bm.t < 0.04) continue; if (bm.k === 'row' && Math.floor(cy) === bm.i && !solidAt(Math.floor(cx), bm.i)) return bm.kind === 'quake' ? 'Le séisme !' : 'Le laser !'; if (bm.k === 'col' && Math.floor(cx) === bm.i && !solidAt(bm.i, Math.floor(cy))) return 'Le laser !'; }
     for (const e of G.ents) {
       if (Math.abs(e.fy + 0.5 - cy) > 6 && e.t !== 'laser') continue;
       if (e.t === 'laser') { if (!e.on) continue; const hor = laserHor(e); const x0 = Math.min(e.a[0], e.b[0]), x1 = Math.max(e.a[0], e.b[0]) + 1, y0 = Math.min(e.a[1], e.b[1]), y1 = Math.max(e.a[1], e.b[1]) + 1; if (hor ? circRect(cx, cy, r, x0, (y0 + y1) / 2 - 0.1, x1, (y0 + y1) / 2 + 0.1) : circRect(cx, cy, r, (x0 + x1) / 2 - 0.1, y0, (x0 + x1) / 2 + 0.1, y1)) return 'Le laser !'; continue; }
@@ -457,10 +492,16 @@
   }
   function hurt(why) {
     const m = G.milo;
+    if (G.rule && G.rule.t === 'nohit') { die(why); return; }
     if (G.bon.shield) {
       G.bon.shield = false; m.invT = 1.1; G.hits++; sfx('shieldHit'); vibrate(25);
       fxBurst(m.px + 0.5, m.py + 0.5, ['#7fd6ff', '#ffffff', '#b8e8ff'], 22, 5); floatText('Bouclier !', m.px, m.py - 0.6, '#7fd6ff');
       m.pose = 'hurt'; m.poseT = 0.35; G.shake = 0.5; hud(); return;
+    }
+    if (G.hearts > 1) {
+      G.hearts--; G.hits++; m.invT = 1.6; sfx('hit'); vibrate([30, 20, 30]); G.shake = 0.7;
+      fxBurst(m.px + 0.5, m.py + 0.5, ['#ff5e7a', '#ffffff'], 20, 5); floatText(why + ' −1 cœur', m.px, m.py - 0.7, '#ff7aa8', true);
+      m.pose = 'hurt'; m.poseT = 0.4; hud(); return;
     }
     die(why);
   }
@@ -478,6 +519,64 @@
     fxBurst(m.px + 0.5, m.py + 0.5, ['#ffd84d', '#ffffff', G.pal.edge], 34, 6);
     try { api.fx.confetti(70); } catch (e) {}
     setTimeout(() => { if (G && G.state === 'win') endLevel(true); }, 1100);
+  }
+
+  /* ---------- Boss : attaques signalées, cibles à activer, 3 phases ----------
+     Équité : chaque attaque est annoncée (≥ 0,85 s) et laisse toujours une échappatoire. */
+  const BOSSDEF = {
+    guardian: { color: '#c69bff', warn: '#ff5e5e', ph: [{ every: 2.4, n: 1, warn: 1.05, sp: 10.5, quake: 0 }, { every: 2.05, n: 2, warn: 0.95, sp: 11.5, quake: 3 }, { every: 1.75, n: 3, warn: 0.85, sp: 12.5, quake: 2 }] },
+    spider: { color: '#5ef2ff', warn: '#5ef2ff', ph: [{ every: 2.3, warn: 1.05 }, { every: 2.0, warn: 0.95, cols: true }, { every: 1.75, warn: 0.9, cols: true, cross: true, bots: 2 }] }
+  };
+  const bossPhase = (b) => (b.hp > (b.max * 2) / 3 ? 0 : b.hp > b.max / 3 ? 1 : 2);
+  // destinations d'une glissade horizontale depuis (x, y) : sert à garder une case sûre
+  function slideX(x, y, dx) { let k = x; while (passable(k + dx, y) && k + dx > 0 && k + dx < G.W - 1) k += dx; return k; }
+  // un rocher lâché en haut de la colonne x s'arrête au premier mur : rangée d'arrêt
+  function colEnd(x) { for (let y = 3; y < G.H - 1; y++) if (solidAt(x, y)) return y; return G.H - 1; }
+  function bossAttack(b) {
+    const P = BOSSDEF[b.kind].ph[b.phase], m = G.milo, mx = clamp(m.x, 1, G.W - 2), my = clamp(m.y, 3, G.H - 2);
+    b.n++; b.eye = 0.7;
+    if (b.kind === 'guardian') {
+      // Milo à l'abri sous un pilier : le gardien frappe le sol de sa rangée
+      if ((P.quake && b.n % P.quake === 0) || colEnd(mx) <= my) { G.warns.push({ k: 'row', i: my, t: 0, dur: P.warn + 0.1, fire: 'quake', col: '#ffb340' }); sfx('door'); return; }
+      const dest = [slideX(mx, my, -1), slideX(mx, my, 1)].filter((x) => x !== mx), keep = dest.length ? dest[Math.floor(Math.random() * dest.length)] : -1;
+      const cols = [mx]; for (let t = 0; cols.length < P.n && t < 40; t++) { const c2 = 1 + Math.floor(Math.random() * (G.W - 2)); if (c2 !== keep && !cols.some((q) => Math.abs(q - c2) < 2)) cols.push(c2); }
+      cols.forEach((c2) => G.warns.push({ k: 'col', i: c2, t: 0, dur: P.warn, fire: 'rock', sp: P.sp, col: BOSSDEF.guardian.warn, end: colEnd(c2) }));
+    } else {
+      const off = () => { const c2 = mx + (Math.random() < 0.5 ? -1 : 1) * (2 + Math.floor(Math.random() * 2)); return clamp(c2 < 1 || c2 > G.W - 2 ? mx + (mx < 5 ? 3 : -3) : c2, 1, G.W - 2); };
+      if (P.cross) { G.warns.push({ k: 'row', i: my, t: 0, dur: P.warn, fire: 'laser' }); G.warns.push({ k: 'col', i: off(), t: 0, dur: P.warn, fire: 'laser' }); }
+      else if (P.cols && b.n % 2 === 0) G.warns.push({ k: 'col', i: mx, t: 0, dur: P.warn, fire: 'laser' });
+      else G.warns.push({ k: 'row', i: my, t: 0, dur: P.warn, fire: 'laser' });
+    }
+    sfx('whoosh');
+  }
+  function fireWarn(w) {
+    if (!G.boss || G.boss.dead) return;
+    if (w.fire === 'rock') { G.proj.push({ x: w.i + 0.5, y: 2.9, vy: w.sp, r: 0.4, rot: 0 }); sfx('boost'); }
+    else if (w.fire === 'quake') { G.beams.push({ k: 'row', i: w.i, t: 0, dur: 0.55, kind: 'quake' }); G.shake = Math.max(G.shake, 0.6); sfx('bump', 1); }
+    else { G.beams.push({ k: w.k, i: w.i, t: 0, dur: 0.5, kind: 'laser' }); noise({ d: 0.35, v: 0.05, f: 2200, f2: 6000, type: 'bandpass' }); }
+  }
+  function spawnBots() {
+    [[1, 3], [G.W - 2, 3]].forEach(([x, y]) => G.ents.push({ i: G.ents.length, t: 'chaser', bot: true, a: [x, y], ex: x, ey: y, alive: true, home: [x, y], tx: x, ty: y, fx: x, fy: y, k: 0, anim: 0, chase: true, eyes: 0, on: false, sp: 2.2, r: 99 }));
+    G.ents.forEach((e) => { if (e.bot) floatText('!', e.fx, e.fy - 0.7, '#ff3d7f'); });
+  }
+  function updBoss(dt) {
+    const b = G.boss; b.hitT = Math.max(0, b.hitT - dt); b.eye = Math.max(0, b.eye - dt);
+    if (b.dead) { b.deadT += dt; return; }
+    if (G.state !== 'play') return;
+    const ph = bossPhase(b);
+    if (ph !== b.phase) { b.phase = ph; floatText(ph === 1 ? 'Il s’énerve !' : 'Dernière phase !', G.W / 2 - 0.5, 4.2, BOSSDEF[b.kind].color, true); G.shake = 0.8; sfx('fail'); if (BOSSDEF[b.kind].ph[ph].bots) spawnBots(); }
+    if (b.calm > 0) { b.calm -= dt; return; }
+    b.next -= dt * G.slowK; if (b.next <= 0) { bossAttack(b); b.next = BOSSDEF[b.kind].ph[b.phase].every; }
+  }
+  function bossHit() {
+    const b = G.boss, t = b.targets[b.ti]; b.hp--; b.ti++; b.hitT = 0.6; b.calm = 1.1; G.warns.length = 0; G.shake = 0.9; vibrate(35);
+    sfx('shieldHit'); setTimeout(() => sfx('star', 2), 120); G.zap = { x: t[0] + 0.5, y: t[1] + 0.5, t: 0 };
+    fxBurst(G.W / 2, 1.7, ['#ffffff', BOSSDEF[b.kind].color, '#ffd84d'], 34, 6); hud();
+    if (b.hp <= 0) {
+      b.dead = true; b.deadT = 0; G.proj.length = 0; G.beams.length = 0; G.ents = G.ents.filter((e) => !e.bot);
+      floatText('Boss vaincu !', G.W / 2 - 0.5, 4.5, '#ffd84d', true); sfx('win'); try { api.fx.confetti(90); } catch (e) {}
+      setTimeout(() => { if (G && G.boss && G.state === 'play') win(); }, 1700);
+    } else floatText(`${b.hp} / ${b.max}`, t[0], t[1] - 0.7, '#ffd84d', true);
   }
 
   /* ---------- Particules, traînée, textes ---------- */
@@ -516,7 +615,7 @@
   function buildChunks() {
     UI.chunks = []; if (!G) return;
     const cs = UI.cs, d = UI.dpr, ps = (cs * d) / P, pal = G.pal, W = G.W, deco = WORLDS[G.wi].deco;
-    const isW = (x, y) => cell(x, y) === '#';
+    const isW = (x, y) => { const c = cell(x, y); return c === '#' || (c === 'H' && !G.rev.has(y * W + x)); };
     for (let c0 = 0; c0 < G.H; c0 += CH) {
       const rows = Math.min(CH, G.H - c0), k = document.createElement('canvas'); k.width = Math.ceil(W * cs * d); k.height = Math.ceil(rows * cs * d); const c = k.getContext('2d');
       c.imageSmoothingEnabled = false;
@@ -542,6 +641,8 @@
         }
         if (!isW(tx, ty + 1)) R(ox, oy + P - 2, P, 2, pal.face);
         if (!isW(tx, ty - 1)) R(ox, oy, P, 1, hexA('#ffffff', 0.18));
+        // mur fissuré : indice discret d'un passage secret
+        if (cell(tx, ty) === 'H') { R(ox + 3, oy + 1, 1, 2, 'rgba(0,0,0,.6)'); R(ox + 4, oy + 3, 1, 2, 'rgba(0,0,0,.6)'); R(ox + 3, oy + 5, 1, 2, 'rgba(0,0,0,.6)'); R(ox + 5, oy + 2, 1, 1, hexA(pal.edge, 0.55)); R(ox + 2, oy + 4, 1, 1, hexA(pal.edge, 0.35)); }
       }
       // contours néon (lueur)
       c.save(); c.strokeStyle = pal.edge; c.lineWidth = Math.max(1, ps); c.lineCap = 'square';
@@ -600,7 +701,10 @@
       else if (ch === 'D') drawDoor(c, px, py, G.doors.find((q) => q.x === x && q.y === y));
       else if (ch in BOOSTDIR) drawBoost(c, BOOSTDIR[ch], px, py, now);
       else if (ch >= '1' && ch <= '4') drawPortal(c, ch, px, py, now);
+      else if ('gPpoab*KQC'.includes(ch)) drawMech(c, ch, px, py, now);
+      if (ch === 'E' && !G.exitOpen) drawExitLock(c, px, py);
     }
+    if (G.boss) drawBossLayer(c, now);
     // aimant : pièces en vol
     G.flyers.forEach((f) => { c.fillStyle = '#ffd84d'; c.fillRect(f.x * cs - cs * 0.1, f.y * cs - cs * 0.1, cs * 0.2, cs * 0.2); });
     // entités
@@ -620,6 +724,108 @@
     // vignette
     if (!UI.lowfx) { if (!UI.vig || UI.vig.w !== W || UI.vig.h !== H) { const g = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.45)'); UI.vig = { w: W, h: H, g }; } c.fillStyle = UI.vig.g; c.fillRect(0, 0, W, H); }
     if (G.bon.slow > 0) { c.fillStyle = 'rgba(120,110,255,.08)'; c.fillRect(0, 0, W, H); }
+  }
+  // grilles, plaques, interrupteurs, barrières, cristaux, clé, relique, coffre
+  function drawMech(c, ch, px, py, now) {
+    const cs = UI.cs, x = px + cs / 2, y = py + cs / 2, bob = Math.sin(now * 3 + px * 0.1) * cs * 0.06, glow = (col, r, a) => { const g = c.createRadialGradient(x, y + bob, 0, x, y + bob, cs * r); g.addColorStop(0, hexA(col, a)); g.addColorStop(1, hexA(col, 0)); c.fillStyle = g; c.fillRect(x - cs * r, y - cs * r + bob, cs * r * 2, cs * r * 2); };
+    if (ch === 'g') {
+      if (G.gate) { c.fillStyle = 'rgba(255,216,77,.10)'; c.fillRect(px + cs * 0.08, py + cs * 0.08, cs * 0.84, cs * 0.84); return; }
+      c.fillStyle = '#1e1206'; c.fillRect(px, py + cs * 0.06, cs, cs * 0.88);
+      c.fillStyle = '#c99a3a'; for (let i = 0; i < 4; i++) c.fillRect(px + cs * (0.1 + i * 0.24), py + cs * 0.06, cs * 0.09, cs * 0.88);
+      c.fillStyle = '#ffd84d'; c.fillRect(px, py + cs * 0.06, cs, cs * 0.1); c.fillRect(px, py + cs * 0.84, cs, cs * 0.1); return;
+    }
+    if (ch === 'P' || ch === 'p') {
+      const on = ch === 'p'; if (!on) glow('#ffd84d', 0.7, 0.25 + 0.15 * Math.sin(now * 4));
+      c.fillStyle = on ? '#5a4410' : '#8a6a1a'; c.fillRect(px + cs * 0.14, py + cs * 0.14, cs * 0.72, cs * 0.72);
+      c.fillStyle = on ? '#9a7a24' : '#ffd84d'; c.fillRect(px + cs * 0.22, py + cs * (on ? 0.28 : 0.2), cs * 0.56, cs * 0.5);
+      c.fillStyle = on ? '#5a4410' : '#fff3b0'; c.fillRect(px + cs * 0.42, py + cs * 0.36, cs * 0.16, cs * 0.16); return;
+    }
+    if (ch === 'o') {
+      const red = G.tog === 0; glow(red ? '#ff4f6d' : '#4fa8ff', 0.75, 0.35);
+      c.fillStyle = '#16102e'; c.beginPath(); c.arc(x, y, cs * 0.34, 0, 7); c.fill();
+      c.fillStyle = red ? '#ff4f6d' : '#5a2030'; c.beginPath(); c.arc(x, y, cs * 0.27, Math.PI / 2, Math.PI * 1.5); c.fill();
+      c.fillStyle = red ? '#1a3a66' : '#4fa8ff'; c.beginPath(); c.arc(x, y, cs * 0.27, -Math.PI / 2, Math.PI / 2); c.fill();
+      c.strokeStyle = '#ffffff'; c.lineWidth = cs * 0.05; c.beginPath(); c.arc(x, y, cs * 0.34, now * 2, now * 2 + 1.6); c.stroke(); return;
+    }
+    if (ch === 'a' || ch === 'b') {
+      const red = ch === 'a', solid = red ? G.tog === 0 : G.tog === 1, col = red ? '#ff4f6d' : '#4fa8ff';
+      if (solid) { c.fillStyle = hexA(col, 0.92); c.fillRect(px + cs * 0.04, py + cs * 0.04, cs * 0.92, cs * 0.92); c.fillStyle = hexA('#ffffff', 0.35); c.fillRect(px + cs * 0.04, py + cs * 0.04, cs * 0.92, cs * 0.12);
+        c.fillStyle = hexA('#000000', 0.2); for (let i = 0; i < 3; i++) c.fillRect(px + cs * (0.16 + i * 0.28), py + cs * 0.2, cs * 0.1, cs * 0.66); }
+      else { c.strokeStyle = hexA(col, 0.5); c.lineWidth = cs * 0.05; c.setLineDash([cs * 0.12, cs * 0.1]); c.strokeRect(px + cs * 0.12, py + cs * 0.12, cs * 0.76, cs * 0.76); c.setLineDash([]); }
+      return;
+    }
+    if (ch === '*') {
+      glow('#c77dff', 0.8, 0.45); const s = cs * 0.3, yy = y + bob;
+      c.fillStyle = '#9b4dff'; c.beginPath(); c.moveTo(x, yy - s * 1.25); c.lineTo(x + s, yy - s * 0.2); c.lineTo(x, yy + s * 1.2); c.lineTo(x - s, yy - s * 0.2); c.closePath(); c.fill();
+      c.fillStyle = '#e2b6ff'; c.beginPath(); c.moveTo(x, yy - s * 1.25); c.lineTo(x + s, yy - s * 0.2); c.lineTo(x, yy); c.closePath(); c.fill();
+      c.fillStyle = '#ffffff'; c.fillRect(x - s * 0.35, yy - s * 0.6, s * 0.22, s * 0.22); return;
+    }
+    if (ch === 'K') {
+      glow('#ffd84d', 0.9, 0.5); const yy = y + bob; c.strokeStyle = '#ffd84d'; c.lineWidth = cs * 0.1;
+      c.beginPath(); c.arc(x - cs * 0.14, yy, cs * 0.14, 0, 7); c.stroke(); c.fillStyle = '#ffd84d'; c.fillRect(x - cs * 0.02, yy - cs * 0.05, cs * 0.34, cs * 0.1); c.fillRect(x + cs * 0.2, yy, cs * 0.07, cs * 0.14); c.fillRect(x + cs * 0.08, yy, cs * 0.07, cs * 0.1); return;
+    }
+    if (ch === 'Q') {
+      glow('#5ef2ff', 1, 0.5); const yy = y + bob; c.strokeStyle = '#ffd84d'; c.lineWidth = cs * 0.07; c.beginPath(); c.ellipse(x, yy, cs * 0.34, cs * 0.12, now, 0, 7); c.stroke();
+      const g = c.createRadialGradient(x - cs * 0.06, yy - cs * 0.06, 0, x, yy, cs * 0.22); g.addColorStop(0, '#ffffff'); g.addColorStop(0.4, '#7af6ff'); g.addColorStop(1, '#1a6a9a'); c.fillStyle = g; c.beginPath(); c.arc(x, yy, cs * 0.22, 0, 7); c.fill(); return;
+    }
+    if (ch === 'C') {
+      glow('#ffb340', 0.7, 0.3); c.fillStyle = '#7a3e12'; c.fillRect(px + cs * 0.16, py + cs * 0.32, cs * 0.68, cs * 0.5); c.fillStyle = '#a8561c'; c.fillRect(px + cs * 0.16, py + cs * 0.22, cs * 0.68, cs * 0.22);
+      c.fillStyle = '#ffd84d'; c.fillRect(px + cs * 0.16, py + cs * 0.42, cs * 0.68, cs * 0.07); c.fillRect(px + cs * 0.44, py + cs * 0.38, cs * 0.12, cs * 0.18);
+    }
+  }
+  function drawExitLock(c, px, py) {
+    const cs = UI.cs, left = G.coinsTotal - G.got; c.fillStyle = 'rgba(10,5,30,.72)'; c.fillRect(px + cs * 0.1, py + cs * 0.1, cs * 0.8, cs * 0.8);
+    c.fillStyle = '#ffd84d'; c.fillRect(px + cs * 0.32, py + cs * 0.42, cs * 0.36, cs * 0.3); c.strokeStyle = '#ffd84d'; c.lineWidth = cs * 0.07; c.beginPath(); c.arc(px + cs / 2, py + cs * 0.42, cs * 0.12, Math.PI, 0); c.stroke();
+    c.font = `900 ${Math.round(cs * 0.3)}px system-ui,sans-serif`; c.textAlign = 'center'; c.fillStyle = '#ffffff'; c.fillText(String(left), px + cs / 2, py + cs * 0.06 + cs * 1.1);
+  }
+  // boss : alertes, rayons, rochers, cible à activer, créature
+  function drawBossLayer(c, now) {
+    const b = G.boss, cs = UI.cs, def = BOSSDEF[b.kind];
+    G.warns.forEach((w) => { const k = w.t / w.dur, a = 0.1 + 0.22 * k + 0.08 * Math.sin(now * 20), colr = w.col || def.warn; c.fillStyle = hexA(colr, a);
+      if (w.k === 'col') { c.fillRect(w.i * cs, 3 * cs, cs, ((w.end || G.H - 1) - 3) * cs); c.fillStyle = hexA(colr, 0.9); c.beginPath(); c.moveTo(w.i * cs + cs * 0.2, 3 * cs + cs * 0.15); c.lineTo(w.i * cs + cs * 0.8, 3 * cs + cs * 0.15); c.lineTo(w.i * cs + cs / 2, 3 * cs + cs * 0.6); c.fill(); }
+      else { c.fillRect(cs, w.i * cs, (G.W - 2) * cs, cs); c.fillStyle = hexA(colr, 0.9); c.fillRect(cs * 0.6, w.i * cs + cs * 0.3, cs * 0.25, cs * 0.4); c.fillRect((G.W - 1) * cs + cs * 0.15, w.i * cs + cs * 0.3, cs * 0.25, cs * 0.4); } });
+    G.beams.forEach((bm) => { const a = 1 - bm.t / bm.dur;
+      if (bm.kind === 'quake') { for (let x = 1; x < G.W - 1; x++) { if (solidAt(x, bm.i)) continue; c.fillStyle = hexA('#ffb340', a); for (let j = 0; j < 3; j++) { const sx = x * cs + cs * (0.1 + j * 0.3); c.beginPath(); c.moveTo(sx, bm.i * cs + cs * 0.9); c.lineTo(sx + cs * 0.13, bm.i * cs + cs * (0.25 - a * 0.1)); c.lineTo(sx + cs * 0.26, bm.i * cs + cs * 0.9); c.fill(); } } return; }
+      c.save(); c.globalCompositeOperation = 'lighter'; c.fillStyle = hexA(def.color, 0.55 * a); if (!UI.lowfx) { c.shadowColor = def.color; c.shadowBlur = cs * 0.6; }
+      if (bm.k === 'row') { c.fillRect(cs, bm.i * cs + cs * 0.22, (G.W - 2) * cs, cs * 0.56); c.fillStyle = hexA('#ffffff', 0.9 * a); c.fillRect(cs, bm.i * cs + cs * 0.42, (G.W - 2) * cs, cs * 0.16); }
+      else { c.fillRect(bm.i * cs + cs * 0.22, 3 * cs, cs * 0.56, (G.H - 4) * cs); c.fillStyle = hexA('#ffffff', 0.9 * a); c.fillRect(bm.i * cs + cs * 0.42, 3 * cs, cs * 0.16, (G.H - 4) * cs); }
+      c.restore(); });
+    G.proj.forEach((p) => { const x = p.x * cs, y = p.y * cs, r = p.r * cs; c.fillStyle = 'rgba(0,0,0,.3)'; c.beginPath(); c.ellipse(x, y + r * 0.9, r * 0.9, r * 0.3, 0, 0, 7); c.fill();
+      const g = c.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r); g.addColorStop(0, '#b9a8d8'); g.addColorStop(1, '#4a3a6a'); c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+      c.strokeStyle = 'rgba(30,15,50,.7)'; c.lineWidth = cs * 0.05; c.beginPath(); c.arc(x, y, r * 0.55, p.rot, p.rot + 2); c.stroke(); });
+    // cible à activer
+    const t = !b.dead && b.targets[b.ti];
+    if (t) { const x = (t[0] + 0.5) * cs, y = (t[1] + 0.5) * cs, pu = 0.5 + 0.5 * Math.sin(now * 5), colr = b.kind === 'spider' ? '#5ef2ff' : '#ffd84d';
+      const g = c.createRadialGradient(x, y, 0, x, y, cs * 1.1); g.addColorStop(0, hexA(colr, 0.55)); g.addColorStop(1, hexA(colr, 0)); c.fillStyle = g; c.fillRect(x - cs * 1.1, y - cs * 1.1, cs * 2.2, cs * 2.2);
+      c.strokeStyle = colr; c.lineWidth = cs * 0.08; c.beginPath(); c.arc(x, y, cs * (0.3 + pu * 0.1), 0, 7); c.stroke();
+      if (b.kind === 'spider') { c.fillStyle = colr; c.fillRect(x - cs * 0.14, y - cs * 0.14, cs * 0.28, cs * 0.28); } else { c.fillStyle = colr; c.fillRect(x - cs * 0.05, y - cs * 0.2, cs * 0.1, cs * 0.4); c.fillRect(x - cs * 0.16, y - cs * 0.05, cs * 0.32, cs * 0.1); } }
+    if (G.zap) { G.zap.t += 1 / 60; const a = 1 - G.zap.t / 0.4; if (a <= 0) G.zap = null; else { c.save(); c.globalCompositeOperation = 'lighter'; c.strokeStyle = hexA(def.color, a); c.lineWidth = cs * 0.18 * a; c.beginPath(); c.moveTo(G.zap.x * cs, G.zap.y * cs); c.lineTo(G.W / 2 * cs, 1.8 * cs); c.stroke(); c.restore(); } }
+    drawBoss(c, now);
+  }
+  function drawBoss(c, now) {
+    const b = G.boss, cs = UI.cs, k = b.dead ? Math.max(0, 1 - b.deadT / 1.3) : 1; if (k <= 0) return;
+    const eye = b.kind === 'spider' ? ['#5ef2ff', '#ffd84d', '#ff4fd8'][b.phase] : ['#c9a8ff', '#ffb340', '#ff4f6d'][b.phase], open = 0.35 + b.eye * 0.9;
+    c.save(); c.globalAlpha = k; c.translate((G.W / 2) * cs + (b.hitT > 0 ? (Math.random() - 0.5) * cs * 0.25 : 0), 1.55 * cs + Math.sin(now * 1.7) * cs * 0.07); if (b.dead) c.rotate(Math.sin(b.deadT * 30) * 0.05);
+    if (b.kind === 'guardian') {
+      const w = cs * 6.2, h = cs * 2.5;
+      c.fillStyle = '#2a1b4a'; c.fillRect(-w / 2 - cs * 0.2, -h / 2 + cs * 0.15, w + cs * 0.4, h);
+      const g = c.createLinearGradient(0, -h / 2, 0, h / 2); g.addColorStop(0, '#7a62a8'); g.addColorStop(1, '#3a2a62'); c.fillStyle = g; c.fillRect(-w / 2, -h / 2, w, h);
+      c.fillStyle = '#9a84c8'; c.fillRect(-w / 2, -h / 2, w, cs * 0.22); c.fillStyle = '#2a1b4a'; c.fillRect(-w / 2 + cs * 0.6, -cs * 0.55, w - cs * 1.2, cs * 0.16);
+      c.fillStyle = '#ffd84d'; [-2.2, -1.1, 1.1, 2.2].forEach((dx) => c.fillRect(dx * cs - cs * 0.08, -h / 2 + cs * 0.35, cs * 0.16, cs * 0.16));
+      [-1.35, 1.35].forEach((dx) => { const ex = dx * cs, ey = cs * 0.05; const gg = c.createRadialGradient(ex, ey, 0, ex, ey, cs * 0.8); gg.addColorStop(0, hexA(eye, 0.8)); gg.addColorStop(1, hexA(eye, 0)); c.fillStyle = gg; c.fillRect(ex - cs * 0.8, ey - cs * 0.8, cs * 1.6, cs * 1.6); c.fillStyle = eye; c.fillRect(ex - cs * 0.42, ey - cs * 0.22 * open, cs * 0.84, cs * 0.44 * open); c.fillStyle = '#ffffff'; c.fillRect(ex - cs * 0.12, ey - cs * 0.08 * open, cs * 0.24, cs * 0.16 * open); });
+      c.fillStyle = '#1a1030'; c.fillRect(-cs * 0.9, cs * 0.62, cs * 1.8, cs * (0.14 + b.eye * 0.3));
+      c.strokeStyle = 'rgba(20,10,40,.8)'; c.lineWidth = cs * 0.06; for (let i = 0; i < b.max - b.hp; i++) { const sx = (hash(i, 3, 77) - 0.5) * w * 0.9; c.beginPath(); c.moveTo(sx, -h / 2); c.lineTo(sx + cs * 0.2, -h / 2 + cs * 0.5); c.lineTo(sx - cs * 0.1, -h / 2 + cs * 0.9); c.stroke(); }
+    } else {
+      for (let i = 0; i < 4; i++) [-1, 1].forEach((sd) => { const a = Math.sin(now * 6 + i * 1.3 + (sd > 0 ? 1 : 0)) * 0.25, bx = sd * cs * (0.9 + i * 0.25), by = -cs * 0.2 + i * cs * 0.22;
+        c.strokeStyle = '#1a3a66'; c.lineWidth = cs * 0.2; c.beginPath(); c.moveTo(bx, by); c.lineTo(bx + sd * cs * 1.1, by - cs * (0.6 - a)); c.lineTo(bx + sd * cs * 1.9, by + cs * (0.7 + a)); c.stroke();
+        c.strokeStyle = '#5ef2ff'; c.lineWidth = cs * 0.05; c.beginPath(); c.moveTo(bx + sd * cs * 1.1, by - cs * (0.6 - a)); c.lineTo(bx + sd * cs * 1.9, by + cs * (0.7 + a)); c.stroke(); });
+      const g = c.createRadialGradient(0, -cs * 0.2, cs * 0.2, 0, 0, cs * 1.6); g.addColorStop(0, '#3a6ab0'); g.addColorStop(1, '#0a1a3a'); c.fillStyle = g; c.beginPath(); c.ellipse(0, 0, cs * 1.6, cs * 1.05, 0, 0, 7); c.fill();
+      c.strokeStyle = '#5ef2ff'; c.lineWidth = cs * 0.06; c.beginPath(); c.ellipse(0, 0, cs * 1.6, cs * 1.05, 0, 0, 7); c.stroke();
+      [-0.75, -0.25, 0.25, 0.75].forEach((dx, i) => { const ex = dx * cs, ey = cs * (i === 0 || i === 3 ? 0.05 : -0.1), gg = c.createRadialGradient(ex, ey, 0, ex, ey, cs * 0.5); gg.addColorStop(0, hexA(eye, 0.9)); gg.addColorStop(1, hexA(eye, 0)); c.fillStyle = gg; c.fillRect(ex - cs * 0.5, ey - cs * 0.5, cs, cs); c.fillStyle = eye; c.beginPath(); c.arc(ex, ey, cs * 0.13 * (0.7 + open * 0.4), 0, 7); c.fill(); });
+      c.fillStyle = hexA(eye, 0.5 + 0.5 * Math.sin(now * 8)); c.fillRect(-cs * 0.5, cs * 0.5, cs, cs * 0.12);
+    }
+    if (b.hitT > 0) { c.globalCompositeOperation = 'lighter'; c.fillStyle = hexA('#ffffff', b.hitT * 0.7); c.fillRect(-cs * 3.6, -cs * 1.5, cs * 7.2, cs * 3); }
+    c.restore();
   }
   function drawBonus(c, ch, px, py, now) {
     const b = BONUS[ch], cs = UI.cs, bob = Math.sin(now * 3 + px) * cs * 0.06, x = px + cs / 2, y = py + cs / 2 + bob, s = cs * 0.9;
@@ -799,10 +1005,11 @@
           <div class="mz-pill mz-coins"><i class="mz-ic coin"></i><b data-h="coins">0</b><span data-h="ctot">/0</span></div>
           <div class="mz-stars" data-h="stars">${objLabels(G).map((t) => `<i title="${t}"></i>`).join('')}</div>
           <div class="mz-pill mz-time">${ico('clock')}<b data-h="time">0:00</b></div></div>
-        <div class="mz-prog"><i data-h="prog"></i><span>${(G.li + 1)} · ${WORLDS[G.wi].short}</span></div>
+        ${G.boss ? `<div class="mz-bossbar"><b>${G.boss.name}</b><div class="mz-bhp"><i data-h="bhp"></i></div></div>` : `<div class="mz-prog"><i data-h="prog"></i><span>${lvLabel(G.wi, G.li)} · ${WORLDS[G.wi].short}</span></div>`}
+        <div class="mz-xtra" data-h="xtra"></div>
         <div class="mz-bons" data-h="bons"></div>
       </div>
-      <div class="mz-obj" data-h="obj"><small>Objectifs</small>${objLabels(G).map((t) => `<span>${MG.icon('star')}${t}</span>`).join('')}</div>
+      <div class="mz-obj${G.L.tip ? ' tip' : ''}" data-h="obj"><small>Objectifs</small>${G.L.tip ? `<em>${G.L.tip}</em>` : ''}${objLabels(G).map((t) => `<span>${MG.icon('star')}${t}</span>`).join('')}</div>
       <div class="mz-hint" data-h="hint"><div class="mz-hand"></div><b>Glisse ton doigt</b><span>Milo fonce jusqu’au prochain mur</span></div>
     </div>`;
   }
@@ -817,18 +1024,29 @@
     if (b.slow > 0) bons.push(['Ralenti', -1, BONUS.R.color, Math.ceil(b.slow) + 's']);
     const html = bons.map(([n, i, col, t]) => `<div class="mz-bon" style="--c:${col}">${i >= 0 ? `<i class="mz-ic" style="background-position:${i * 20}% 0"></i>` : '<i class="mz-ic hg"></i>'}<b>${t}</b></div>`).join('');
     if (H.bons && H.bons._h !== html) { H.bons._h = html; H.bons.innerHTML = html; }
+    // cœurs, cristaux, clé/relique, règle de défi
+    const x = [];
+    if (G.maxHearts > 1) x.push(`<span class="mz-hrt">${Array.from({ length: G.maxHearts }, (_, i) => ico('heart', i < G.hearts ? 'on' : '')).join('')}</span>`);
+    if (G.crTotal) x.push(`<span class="mz-xc${G.crystals >= G.crTotal ? ' ok' : ''}">${ico('gem')}${G.crystals}/${G.crTotal}</span>`);
+    if (G.L.ksol) x.push(`<span class="mz-xk${G.key ? ' ok' : ''}">${ico('key')}${G.key ? 'Clé' : '?'}</span>`);
+    if (G.L.qsol) x.push(`<span class="mz-xk${G.relic ? ' ok' : ''}">${ico('relic')}${G.relic ? 'Relique' : '?'}</span>`);
+    if (G.rule && G.rule.t === 'nohit') x.push('<span class="mz-xr">Sans coup</span>');
+    if (G.rule && G.rule.t === 'allcoins') x.push(`<span class="mz-xr${G.exitOpen ? ' ok' : ''}">${G.exitOpen ? 'Sortie ouverte' : `Encore ${G.coinsTotal - G.got} pièces`}</span>`);
+    const xh = x.join(''); if (H.xtra && H.xtra._h !== xh) { H.xtra._h = xh; H.xtra.innerHTML = xh; }
     hudTick();
   }
   function hudTick() {
     if (!root || !G) return; const H = UI.hudEls; applyVolumes();
     if (H.coins && H.coins._v !== G.got) { H.coins._v = G.got; H.coins.textContent = G.got; }
-    if (H.time) { const v = fmtT(G.time).replace(/\.\d$/, ''); if (H.time._v !== v) { H.time._v = v; H.time.textContent = v; H.time.parentNode.classList.toggle('late', G.time > G.L.par); } }
-    if (H.prog) { const k = clamp((G.startY - G.milo.py) / Math.max(1, G.startY - G.exit[1]), 0, 1); H.prog.style.width = Math.round(k * 100) + '%'; }
+    if (H.time) { const tm = G.rule && G.rule.t === 'timer', left = tm ? Math.max(0, G.rule.s - G.time) : 0, v = fmtT(tm ? left : G.time).replace(/\.\d$/, ''); if (H.time._v !== v) { H.time._v = v; H.time.textContent = v; H.time.parentNode.classList.toggle('late', tm ? left < 6 : G.time > G.L.par); } }
+    if (H.prog && G.exit) { const k = clamp((G.startY - G.milo.py) / Math.max(1, G.startY - G.exit[1]), 0, 1); H.prog.style.width = Math.round(k * 100) + '%'; }
+    if (H.bhp && G.boss) { const w = Math.round((G.boss.hp / G.boss.max) * 100) + '%'; if (H.bhp._v !== w) { H.bhp._v = w; H.bhp.style.width = w; } }
+    if (G.rule && G.rule.t === 'allcoins' && UI.lastGot !== G.got) { UI.lastGot = G.got; hud(); }
     if (H.stars) { const s = H.stars.children; s[0].className = G.state === 'win' ? 'on' : ''; s[1].className = objCls(G, 1); s[2].className = objCls(G, 2); }
     ['magnet', 'speed', 'slow'].forEach((k) => {}); if (G.bon.magnet > 0 || G.bon.speed > 0 || G.bon.slow > 0) { const t = Math.ceil(G.bon.magnet) + ':' + Math.ceil(G.bon.speed) + ':' + Math.ceil(G.bon.slow); if (t !== UI.bonT) { UI.bonT = t; hud(); } }
   }
   function bumpHud(k) { const el = UI.hudEls[k]; if (!el) return; el.textContent = G.got; el._v = G.got; const p = el.parentNode; p.classList.remove('bump'); void p.offsetWidth; p.classList.add('bump'); }
-  function hideHint() { const h = UI.hudEls.hint; if (h) h.classList.add('out'); const o = UI.hudEls.obj; if (o) setTimeout(() => o.classList.add('out'), 700); }
+  function hideHint() { const h = UI.hudEls.hint; if (h) h.classList.add('out'); const o = UI.hudEls.obj; if (o) setTimeout(() => o.classList.add('out'), G && G.L.tip ? 2600 : 700); }
 
   /* =====================================================================
      DÉMARRAGE / FIN DE NIVEAU
@@ -842,15 +1060,17 @@
     cv = root.querySelector('.mz-cv'); ctx = cv.getContext('2d');
     UI.hudEls = {}; root.querySelectorAll('[data-h]').forEach((e) => (UI.hudEls[e.dataset.h] = e));
     if (!(settings().hints && (wi === 0 && li < 2 || !data().seenTuto))) UI.hudEls.hint.classList.add('out');
-    layout(); hud(); startLoop();
-    clearTimeout(UI.objT); UI.objT = setTimeout(() => { const o = UI.hudEls.obj; if (o) o.classList.add('out'); }, 4200);
+    layout(); hud(); if (G.boss) layout(); startLoop();
+    clearTimeout(UI.objT); UI.objT = setTimeout(() => { const o = UI.hudEls.obj; if (o) o.classList.add('out'); }, G.L.tip ? 6500 : 4200);
     const s = data().stats; s.runs = (s.runs || 0) + 1; data().last = lvKey(wi, li); api.save();
     Music.start(wi);
   }
   function layout() {
     if (!root || !cv || !G) return;
     const r = cv.getBoundingClientRect(); if (!r.width) return;
-    const d = Math.min(2, window.devicePixelRatio || 1), cs = Math.max(18, Math.floor(Math.min(r.width / G.W, r.height / 12)));
+    const d = Math.min(2, window.devicePixelRatio || 1); let cs = Math.max(18, Math.floor(Math.min(r.width / G.W, r.height / 12)));
+    // boss : caméra fixe, toute l'arène + la créature visibles sous le HUD
+    if (G.boss) { const hud = root.querySelector('.mz-hud'), hb = hud ? hud.getBoundingClientRect().bottom - r.top : 120; cs = Math.max(16, Math.floor(Math.min(r.width / G.W, (r.height - hb - 6) / G.H))); G.bossCam = -(hb + 2) / cs; G.cam = G.camT = G.bossCam; }
     UI.vw = r.width; UI.vh = r.height; UI.dpr = d; UI.ox = Math.floor((r.width - cs * G.W) / 2);
     cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d);
     if (cs !== UI.cs || UI.chunkLv !== G.L || UI.chunkDpr !== d || UI.chunkLow !== UI.lowfx) { UI.cs = cs; UI.chunkLv = G.L; UI.chunkDpr = d; UI.chunkLow = UI.lowfx; buildChunks(); }
@@ -861,31 +1081,40 @@
   const OBJ = {
     coins: { lbl: (g, o) => `${Math.ceil(g.coinsTotal * (o.p || 0.7))} pièces`, ok: (g, o) => g.got >= Math.ceil(g.coinsTotal * (o.p || 0.7)) },
     allcoins: { lbl: () => 'Toutes les pièces', ok: (g) => g.got >= g.coinsTotal },
-    time: { lbl: (g, o) => `Moins de ${Math.round(o.s || g.L.par)} s`, ok: (g, o) => g.time <= (o.s || g.L.par), keep: true },
-    nohit: { lbl: () => 'Sans prendre de coup', ok: (g) => g.hits === 0, keep: true },
-    nobonus: { lbl: () => 'Sans ramasser de bonus', ok: (g) => !g.bonusUsed, keep: true }
+    time: { lbl: (g, o) => `Moins de ${Math.round((o.s || g.L.par) * (o.k || 1))} s`, ok: (g, o) => g.time <= (o.s || g.L.par) * (o.k || 1), keep: true },
+    nohit: { lbl: (g) => (g.maxHearts > 1 ? 'Sans perdre de cœur' : 'Sans prendre de coup'), ok: (g) => g.hits === 0, keep: true },
+    nobonus: { lbl: () => 'Sans ramasser de bonus', ok: (g) => !g.bonusUsed, keep: true },
+    crystals: { lbl: (g) => `${g.crTotal || 3} cristaux`, ok: (g) => g.crTotal > 0 && g.crystals >= g.crTotal },
+    key: { lbl: () => 'Trouver la clé secrète', ok: (g) => g.key },
+    relic: { lbl: () => 'Trouver la relique', ok: (g) => g.relic }
   };
   const objOf = (L) => (L.obj && L.obj.length === 2 ? L.obj : [{ t: 'coins', p: 0.7 }, { t: 'time' }]);
   const objLabels = (g) => ['Sortie'].concat(objOf(g.L).map((o) => (OBJ[o.t] ? OBJ[o.t].lbl(g, o) : '—')));
   const objOk = (g, k) => { const o = objOf(g.L)[k - 1], O = o && OBJ[o.t]; return O ? O.ok(g, o) : false; };
   const objCls = (g, k) => { const o = objOf(g.L)[k - 1], O = OBJ[o.t] || {}, ok = objOk(g, k); return O.keep ? (ok ? 'on soft' : 'off') : ok ? 'on' : ''; };
   function starsOf(g) { return [1, objOk(g, 1) ? 1 : 0, objOk(g, 2) ? 1 : 0]; }
-  function scoreOf(g, st) { const n = st.reduce((a, b) => a + b, 0); return g.got * 10 + n * 150 + Math.max(0, Math.round((g.L.par * 1.6 - g.time) * 12)) + (g.hits === 0 ? 100 : 0); }
+  function scoreOf(g, st) { const n = st.reduce((a, b) => a + b, 0); return g.got * 10 + n * 150 + g.crystals * 50 + (g.boss ? g.hearts * 200 : 0) + Math.max(0, Math.round((g.L.par * 1.6 - g.time) * 12)) + (g.hits === 0 ? 100 : 0); }
   function endLevel(won) {
     if (!G) return;
     const d = data(), key = lvKey(G.wi, G.li), rec = (d.lv = d.lv || {})[key] || {};
     d.coins = (d.coins || 0) + G.got; const s = d.stats; s.coinsTotal = (s.coinsTotal || 0) + G.got;
-    let st = [0, 0, 0], score = G.got * 10, newBest = false, unlocks = [];
+    let st = [0, 0, 0], score = G.got * 10, newBest = false, unlocks = []; const gains = [];
     if (won) {
       st = starsOf(G); score = scoreOf(G, st); const n = st.reduce((a, b) => a + b, 0);
       newBest = !rec.best || score > rec.best;
       d.lv[key] = { stars: Math.max(rec.stars || 0, n), best: Math.max(rec.best || 0, score), time: rec.time ? Math.min(rec.time, +G.time.toFixed(1)) : +G.time.toFixed(1), done: (rec.done || 0) + 1 };
       s.wins = (s.wins || 0) + 1;
+      const C = col(G.wi);
+      if (G.crTotal) { C.cr = C.cr || {}; C.cr[key] = Math.max(C.cr[key] || 0, G.crystals); }
+      if (G.chests) { C.ch = C.ch || {}; const was = C.ch[key] || 0; if (G.chests > was) { const b = (G.chests - was) * CHEST_COINS; d.coins += b; gains.push(['chest', `Coffre${G.chests - was > 1 ? 's' : ''} : +${b} pièces`]); C.ch[key] = G.chests; } }
+      if (G.key && !C.key) { C.key = 1; gains.push(['key', 'Niveau secret débloqué !']); }
+      if (G.relic && !C.relic) { C.relic = 1; gains.push(['relic', 'Relique ajoutée à ta collection']); }
+      if (G.boss && !C.boss) { C.boss = 1; d.coins += BOSS_COINS; gains.push(['trophy', `Trophée : ${G.boss.name} · +${BOSS_COINS} pièces`]); }
       // skins débloqués en terminant un monde ou en réunissant des étoiles
       SKINS.forEach((sk) => { if ((d.owned || {})[sk.id]) return; if ((sk.world && worldDone(sk.world)) || (sk.stars && totalStars() >= sk.stars)) { (d.owned = d.owned || { classic: true })[sk.id] = true; unlocks.push(sk); } });
     }
     api.save(); Music.target = 0;
-    showEnd(won, st, score, rec.best || 0, newBest, unlocks);
+    showEnd(won, st, score, rec.best || 0, newBest, unlocks, gains);
   }
   // ---- progression par mondes (les mondes sans niveaux sont « bientôt » et ne bloquent pas la suite)
   const done = (wi, li) => ((((data().lv || {})[lvKey(wi, li)] || {}).stars) || 0) > 0;
@@ -893,18 +1122,45 @@
   function prevContent(wi) { for (let k = wi - 1; k >= 0; k--) if (hasContent(k)) return k; return -1; }
   function worldOpen(wi) {
     if (!hasContent(wi)) return false; const p = prevContent(wi); if (p < 0) return true;
+    const wo = data().wopen; if (wo && wo[WORLDS[wi].id]) return true; // monde déjà ouvert avant la V2 : jamais reverrouillé
     if (CONTENT[wi].some((_, li) => done(wi, li))) return true; // progression déjà commencée : jamais reverrouillée
     return done(p, CONTENT[p].length - 1);
   }
-  function unlocked(wi, li) { return worldOpen(wi) && (li === 0 || done(wi, li - 1) || done(wi, li)); }
-  function nextOf(wi, li) { if (li + 1 < CONTENT[wi].length) return [wi, li + 1]; for (let k = wi + 1; k < WORLDS.length; k++) if (hasContent(k)) return [k, 0]; return null; }
-  function worldStars(wi) { let n = 0; (CONTENT[wi] || []).forEach((_, li) => (n += ((data().lv || {})[lvKey(wi, li)] || {}).stars || 0)); return n; }
+  const CHAL_AFTER = [4, 9, 14]; // défi 1 après le niveau 5, défi 2 après le 10, défi 3 après le boss
+  function unlocked(wi, li) {
+    if (!worldOpen(wi)) return false;
+    if (typeof li === 'string') { if (li === 's') return !!SECRET[wi] && !!col(wi).key; const need = CHAL_AFTER[+li.slice(1)]; return !!CHAL[wi][+li.slice(1)] && CONTENT[wi].length > need && (done(wi, need) || done(wi, li)); }
+    return li === 0 || done(wi, li - 1) || done(wi, li);
+  }
+  // accès aux mondes déjà ouverts avant l'ajout des niveaux 7 à 15 (calculé une seule fois)
+  function keepOpen(d) {
+    if (d.wopenV) return; d.wopen = d.wopen || {};
+    if (Object.keys(d.lv || {}).length) WORLDS.forEach((W, wi) => { if (!LEGACY_N[wi]) return; const p = prevContent(wi), any = CONTENT[wi].slice(0, LEGACY_N[wi]).some((_, li) => done(wi, li)); if (any || (p >= 0 && LEGACY_N[p] && done(p, LEGACY_N[p] - 1))) d.wopen[W.id] = 1; });
+    d.wopenV = 1;
+  }
+  function nextOf(wi, li) { if (typeof li !== 'number') return null; if (li + 1 < CONTENT[wi].length) return [wi, li + 1]; for (let k = wi + 1; k < WORLDS.length; k++) if (hasContent(k)) return [k, 0]; return null; }
+  const allKeys = (wi) => (CONTENT[wi] || []).map((_, li) => li).concat((CHAL[wi] || []).map((_, k) => 'd' + k), SECRET[wi] ? ['s'] : []);
+  function worldStars(wi) { let n = 0; allKeys(wi).forEach((li) => (n += ((data().lv || {})[lvKey(wi, li)] || {}).stars || 0)); return n; }
+  const worldMax = (wi) => allKeys(wi).length * 3;
   const worldDoneN = (wi) => (CONTENT[wi] || []).filter((_, li) => done(wi, li)).length;
-  // complétion : niveaux terminés + étoiles (les collections s'ajouteront ici)
-  function worldPct(wi) { const n = (CONTENT[wi] || []).length; return n ? Math.round(((worldDoneN(wi) + worldStars(wi)) / (n * 4)) * 100) : 0; }
-  function globalPct() { let a = 0, m = 0; CONTENT.forEach((c, wi) => { a += worldDoneN(wi) + worldStars(wi); m += c.length * 4; }); return m ? Math.round((a / m) * 100) : 0; }
-  const maxStars = () => CONTENT.reduce((n, c) => n + c.length * 3, 0);
-  function totalStars() { let n = 0; CONTENT.forEach((c, wi) => (n += worldStars(wi))); return n; }
+  // collection d'un monde : cristaux, coffres, clé, relique, trophée du boss
+  function colStats(wi) {
+    const C = col(wi), o = { cr: 0, crMax: 0, ch: 0, chMax: 0, key: null, relic: null, boss: null };
+    allKeys(wi).forEach((li) => { const t = levelAt(wi, li).rows.join(''), k = lvKey(wi, li), nc = (t.match(/\*/g) || []).length, nh = (t.match(/C/g) || []).length;
+      o.crMax += nc; o.chMax += nh; o.cr += Math.min(nc, (C.cr || {})[k] || 0); o.ch += Math.min(nh, (C.ch || {})[k] || 0);
+      if (t.includes('K')) o.key = C.key ? 1 : 0; if (t.includes('Q')) o.relic = C.relic ? 1 : 0; if (levelAt(wi, li).boss) o.boss = C.boss ? 1 : 0; });
+    return o;
+  }
+  // complétion : niveaux terminés + étoiles + objets de collection
+  function pctParts(wi) {
+    const keys = allKeys(wi); if (!keys.length) return [0, 0]; const cs = colStats(wi); let a = 0, m = keys.length * 4 + cs.crMax + cs.chMax;
+    keys.forEach((li) => { a += (done(wi, li) ? 1 : 0) + (((data().lv || {})[lvKey(wi, li)] || {}).stars || 0); });
+    a += cs.cr + cs.ch; ['key', 'relic', 'boss'].forEach((k) => { if (cs[k] != null) { m++; a += cs[k]; } }); return [a, m];
+  }
+  function worldPct(wi) { const [a, m] = pctParts(wi); return m ? Math.round((a / m) * 100) : 0; }
+  function globalPct() { let a = 0, m = 0; WORLDS.forEach((_, wi) => { const p = pctParts(wi); a += p[0]; m += p[1]; }); return m ? Math.round((a / m) * 100) : 0; }
+  const maxStars = () => WORLDS.reduce((n, _, wi) => n + worldMax(wi), 0);
+  function totalStars() { let n = 0; WORLDS.forEach((_, wi) => (n += worldStars(wi))); return n; }
   function totalScore() { const d = data(); let n = 0; Object.values(d.lv || {}).forEach((r) => (n += r.best || 0)); return n; }
   // prochaine récompense la plus proche (skins liés à un monde ou à des étoiles)
   function nextReward() {
@@ -951,14 +1207,25 @@
         <div class="mz-wlist">${WORLDS.map((W, wi) => worldCard(W, wi)).join('')}</div></div>`;
     } else if (name === 'world') {
       migrate(d); const wi = opt && opt.wi != null ? opt.wi : UI.curWorld || 0, W = WORLDS[wi], lv = CONTENT[wi]; UI.curWorld = wi;
+      const cs = colStats(wi), lvBtn = (li) => { const L = levelAt(wi, li), r = (d.lv || {})[lvKey(wi, li)] || {}, op = unlocked(wi, li), stars = `<span class="mz-ls">${[0, 1, 2].map((k) => `<i class="${k < (r.stars || 0) ? 'on' : ''}">${MG.icon('star')}</i>`).join('')}</span>`;
+        if (L.boss) return `<button class="mz-lv mz-lvboss${op ? '' : ' locked'}${r.stars ? ' done' : ''}" ${op ? `data-mz="play" data-w="${wi}" data-l="${li}"` : 'disabled'}><i class="mz-wemb"><svg viewBox="0 0 24 24">${W.icon}</svg></i><span><small>Niveau ${li + 1} · Boss</small><b>${L.boss.name}</b>${stars}</span>${op ? '' : MG.icon('lock')}</button>`;
+        return `<button class="mz-lv${op ? '' : ' locked'}${r.stars ? ' done' : ''}" ${op ? `data-mz="play" data-w="${wi}" data-l="${li}"` : 'disabled'}><b>${op ? li + 1 : MG.icon('lock')}</b>${stars}<small>${r.best ? MG.fmt(r.best) : op ? 'À jouer' : '—'}</small></button>`; };
+      const RULE = { timer: (L) => `Chrono : ${L.rule.s} s`, nohit: () => 'Un seul coup et c’est fini', allcoins: () => 'Toutes les pièces pour sortir' };
+      const chal = CHAL[wi].map((L, k) => { const li = 'd' + k, r = (d.lv || {})[lvKey(wi, li)] || {}, op = unlocked(wi, li);
+        return `<button class="mz-ch${op ? '' : ' locked'}${r.stars ? ' done' : ''}" ${op ? `data-mz="play" data-w="${wi}" data-l="${li}"` : `data-mz="chlocked" data-w="${wi}" data-k="${k}"`}><small>Défi ${k + 1}</small><b>${L.name}</b><span>${op ? RULE[L.rule.t](L) : `Termine le niveau ${CHAL_AFTER[k] + 1}`}</span><span class="mz-ls">${[0, 1, 2].map((j) => `<i class="${j < (r.stars || 0) ? 'on' : ''}">${MG.icon('star')}</i>`).join('')}</span></button>`; }).join('');
+      const S = SECRET[wi], sop = S && unlocked(wi, 's'), sr = (d.lv || {})[lvKey(wi, 's')] || {};
+      const colRow = [cs.crMax ? `<span>${ico('gem')}<b>${cs.cr}/${cs.crMax}</b><small>cristaux</small></span>` : '', cs.chMax ? `<span>${ico('chest')}<b>${cs.ch}/${cs.chMax}</b><small>coffres</small></span>` : '',
+        cs.key != null ? `<span class="${cs.key ? 'ok' : ''}">${ico('key')}<b>${cs.key ? '1/1' : '0/1'}</b><small>clé</small></span>` : '', cs.relic != null ? `<span class="${cs.relic ? 'ok' : ''}">${ico('relic')}<b>${cs.relic ? '1/1' : '0/1'}</b><small>relique</small></span>` : '',
+        cs.boss != null ? `<span class="${cs.boss ? 'ok' : ''}">${ico('trophy')}<b>${cs.boss ? '1/1' : '0/1'}</b><small>trophée</small></span>` : ''].join('');
       el.style.cssText = `--e:${W.pal.edge};--g:${W.pal.glow};--w:${W.pal.wall}`;
       el.innerHTML = `${topbar('map')}<div class="mz-in">
         <div class="mz-whead" style="background-image:url(${worldArt(wi)})"><i class="mz-wemb"><svg viewBox="0 0 24 24">${W.icon}</svg></i><small>Monde ${wi + 1} · <span class="mz-tier t-${W.tier}">${TIERS[W.tier]}</span></small><b>${W.name}</b><span>${W.blurb}</span></div>
-        <div class="mz-wstats"><div><b>${worldPct(wi)} %</b><span>terminé</span></div><div><b>${worldStars(wi)}/${lv.length * 3}</b><span>étoiles</span></div><div><b>${worldDoneN(wi)}/${lv.length}</b><span>niveaux</span></div></div>
-        <section class="mz-world"><div class="mz-lvgrid">${lv.map((L, li) => { const r = (d.lv || {})[lvKey(wi, li)] || {}, op = unlocked(wi, li);
-          return `<button class="mz-lv${op ? '' : ' locked'}${r.stars ? ' done' : ''}" ${op ? `data-mz="play" data-w="${wi}" data-l="${li}"` : 'disabled'}><b>${op ? li + 1 : MG.icon('lock')}</b>
-            <span class="mz-ls">${[0, 1, 2].map((k) => `<i class="${k < (r.stars || 0) ? 'on' : ''}">${MG.icon('star')}</i>`).join('')}</span><small>${r.best ? MG.fmt(r.best) : op ? 'À jouer' : '—'}</small></button>`; }).join('')}</div></section>
-        <p class="mz-wsoon">${MG.icon('lock')}<span>Bientôt dans ce monde : de nouveaux niveaux, des défis, un niveau secret et le boss <b>${W.boss}</b>.</span></p></div>`;
+        <div class="mz-wstats"><div><b>${worldPct(wi)} %</b><span>terminé</span></div><div><b>${worldStars(wi)}/${worldMax(wi)}</b><span>étoiles</span></div><div><b>${worldDoneN(wi)}/${lv.length}</b><span>niveaux</span></div></div>
+        ${colRow ? `<div class="mz-col">${colRow}</div>` : ''}
+        <section class="mz-world"><div class="mz-lvgrid">${lv.map((_, li) => lvBtn(li)).join('')}</div></section>
+        ${chal ? `<h3 class="mz-h3">Défis</h3><div class="mz-chs">${chal}</div>` : ''}
+        ${S ? `<h3 class="mz-h3">Niveau secret</h3><button class="mz-sec${sop ? '' : ' locked'}${sr.stars ? ' done' : ''}" ${sop ? `data-mz="play" data-w="${wi}" data-l="s"` : `data-mz="seclocked" data-w="${wi}"`}>${sop ? ico('relic') : ico('key')}<span><b>${sop ? S.name : '???'}</b><small>${sop ? (sr.stars ? `${sr.stars}/3 étoiles` : 'Un trésor ancien t’attend') : 'Un mur fissuré cache une clé quelque part dans ce monde'}</small></span></button>` : ''}
+        ${lv.length < 15 ? `<p class="mz-wsoon">${MG.icon('lock')}<span>Bientôt dans ce monde : de nouveaux niveaux, des défis, un niveau secret et le boss <b>${W.boss}</b>.</span></p>` : ''}</div>`;
     } else if (name === 'skins' || name === 'shop') {
       const owned = Object.assign({ classic: true }, d.owned || {}), sel = d.skin || 'classic', u = d.upg || {};
       const skinCards = SKINS.map((s) => { const own = owned[s.id], cond = s.world ? `ou termine le monde ${wIdx(s.world) + 1}` : s.stars ? `ou réunis ${s.stars} étoiles` : '';
@@ -991,7 +1258,7 @@
       <span class="mz-wart" style="background-image:url(${worldArt(wi)})"><span class="mz-wst">${st[0] === 'lock' || st[0] === 'soon' ? MG.icon('lock') : st[0] === 'done' ? ico('check') : ''}${st[1]}</span><i class="mz-wemb"><svg viewBox="0 0 24 24">${W.icon}</svg></i></span>
       <span class="mz-wbody"><span class="mz-wtop"><small>Monde ${wi + 1}</small><span class="mz-tier t-${W.tier}">${TIERS[W.tier]}</span></span>
         <b class="mz-wname">${W.name}</b><span class="mz-wdesc">${desc}</span>
-        ${has ? `<span class="mz-wprog"><span class="mz-bar"><i style="width:${pct}%"></i></span><em>${pct} %</em><em>${worldStars(wi)}/${n * 3} ${MG.icon('star')}</em></span>` : ''}
+        ${has ? `<span class="mz-wprog"><span class="mz-bar"><i style="width:${pct}%"></i></span><em>${pct} %</em><em>${worldStars(wi)}/${worldMax(wi)} ${MG.icon('star')}</em></span>` : ''}
         <span class="mz-wrew">${rew.map((s) => `<span class="mz-rw${own[s.id] ? ' own' : ''}" title="${s.name}">${spriteBox(s.id, 'idle', own[s.id] ? '' : 'sil')}</span>`).join('')}<small>${rew.length ? (rew.every((s) => own[s.id]) ? 'Récompense obtenue · ' : 'Récompense : ' + rew.map((s) => s.name).join(', ') + ' · ') : ''}Boss : ${W.boss}</small></span></span></button>`;
   }
   // illustration pixel art générée à partir de la palette du monde (remplaçable par W.art)
@@ -1047,20 +1314,21 @@
   function pause() {
     if (!G || G.paused || UI.screen !== 'game' || G.state === 'dead' || G.state === 'win') return;
     G.paused = true; UI.ptr = null; Music.stop(); sfx('tap');
-    modal(`<div class="gpanel mz-panel"><div class="mz-pmilo">${spriteBox(data().skin || 'classic', 'idle')}</div><h3>Pause</h3><p>Niveau ${G.li + 1} · ${WORLDS[G.wi].short}</p>
+    modal(`<div class="gpanel mz-panel"><div class="mz-pmilo">${spriteBox(data().skin || 'classic', 'idle')}</div><h3>Pause</h3><p>${lvLabel(G.wi, G.li)} · ${WORLDS[G.wi].short}</p>
       <div class="acts"><button class="gbtn" data-mz="resume">${MG.icon('play')}Reprendre</button><button class="gbtn light" data-mz="restart">${MG.icon('redo')}Recommencer</button>
       <button class="gbtn light" data-mz="psettings">${MG.icon('gear')}Paramètres</button><button class="gbtn light" data-mz="quit">${ico('map')}Quitter le niveau</button></div></div>`);
   }
   function resume() { if (!G) return; closeModal(); G.paused = false; last = 0; Music.start(G.wi); }
-  function showEnd(won, st, score, prevBest, newBest, unlocks) {
+  function showEnd(won, st, score, prevBest, newBest, unlocks, gains) {
     const g = G, d = data(), nx = nextOf(g.wi, g.li), n = st.reduce((a, b) => a + b, 0), best = Math.max(prevBest, won ? score : 0);
     const stars = [0, 1, 2].map((k) => `<i class="${st[k] ? 'on' : ''}" style="animation-delay:${0.25 + k * 0.3}s">${MG.icon('star')}</i>`).join('');
     const lbl = objLabels(g);
     const m = modal(`<div class="gpanel mz-panel ${won ? 'win' : 'lose'}"><div class="mz-pmilo">${spriteBox(d.skin || 'classic', won ? 'win' : 'fail')}</div>
-      <h3>${won ? (n === 3 ? 'Parfait !' : 'Niveau terminé !') : 'Oups !'}</h3><p>${won ? `Niveau ${g.li + 1} · ${WORLDS[g.wi].short}` : (g.why || 'Milo s’est fait surprendre') + ' Réessaie !'}</p>
+      <h3>${won ? (g.boss ? 'Boss vaincu !' : n === 3 ? 'Parfait !' : 'Niveau terminé !') : 'Oups !'}</h3><p>${won ? `${lvLabel(g.wi, g.li)} · ${WORLDS[g.wi].short}` : (g.why || 'Milo s’est fait surprendre') + ' Réessaie !'}</p>
       <div class="mz-endstars">${stars}</div><div class="mz-endlbl">${lbl.map((t, k) => `<span class="${st[k] ? 'on' : ''}">${t}</span>`).join('')}</div>
       <div class="mz-sum"><div><span>Score</span><b data-count="${score}">0</b></div><div><span>Temps</span><b>${fmtT(g.time)}</b></div><div><span>Pièces</span><b>${g.got}/${g.coinsTotal}</b></div><div><span>Meilleur</span><b>${MG.fmt(best)}${newBest && won && prevBest ? ' ★' : ''}</b></div></div>
       ${unlocks.length ? `<div class="mz-unlock">${spriteBox(unlocks[0].id, 'win')}<span>Nouveau skin débloqué : <b>${unlocks[0].name}</b></span></div>` : ''}
+      ${(gains || []).map(([k, t]) => `<div class="mz-gain g-${k}">${ico(k)}<span>${t}</span></div>`).join('')}
       <p class="mz-earn"><i class="mz-ic coin"></i>+${g.got} pièces · total ${MG.fmt(d.coins || 0)}</p>
       <div class="acts">${won && nx ? `<button class="gbtn" data-mz="play" data-w="${nx[0]}" data-l="${nx[1]}">${ico('next')}Niveau suivant</button>` : ''}
         <button class="gbtn ${won && nx ? 'light' : ''}" data-mz="restart">${MG.icon('redo')}${won ? 'Rejouer' : 'Recommencer'}</button>
@@ -1107,6 +1375,8 @@
     else if (a === 'play') { const wi = +b.dataset.w, li = +b.dataset.l; UI.lastLv = [wi, li]; if (!unlocked(wi, li)) return; if (G && G.wi !== wi) worldTrans(wi, () => startLevel(wi, li)); else startLevel(wi, li); }
     else if (a === 'openworld') { const wi = +b.dataset.w; worldTrans(wi, () => screen('world', { wi })); }
     else if (a === 'world') { screen('world', { wi: +b.dataset.w }); }
+    else if (a === 'chlocked') { sfx('no'); toast(`Termine le niveau ${CHAL_AFTER[+b.dataset.k] + 1} pour ouvrir ce défi`); }
+    else if (a === 'seclocked') { sfx('no'); toast('Cherche un mur fissuré : la clé est cachée derrière'); }
     else if (a === 'wlocked') { const wi = +b.dataset.w, p = prevContent(wi); sfx('no'); toast(hasContent(wi) ? `Termine d’abord ${WORLDS[p].name}` : `${WORLDS[wi].name} arrive bientôt`); }
     else if (a === 'map' || a === 'home' || a === 'skins' || a === 'shop' || a === 'settings') screen(a);
     else if (a === 'pick') { d.skin = b.dataset.id; skinImg(d.skin); api.save(); screen(UI.screen); }
@@ -1132,7 +1402,7 @@
   MG.register({
     id: 'maze', name: 'Milo Maze', logo: 'logo_maze.webp', theme: 'maze',
     mount(frame, a) {
-      api = a; const d = migrate(api.data); d.stats = d.stats || {}; d.owned = Object.assign({ classic: true }, d.owned || {}); d.upg = d.upg || {}; d.lv = d.lv || {};
+      api = a; const d = migrate(api.data); keepOpen(d); d.stats = d.stats || {}; d.owned = Object.assign({ classic: true }, d.owned || {}); d.upg = d.upg || {}; d.lv = d.lv || {};
       if (d.coins == null) d.coins = 0; if (!skinById(d.skin).id || !d.owned[d.skin]) d.skin = 'classic';
       UI.lowfx = !!settings().lowfx;
       skinImg(d.skin); itemsImg();
@@ -1154,14 +1424,14 @@
     },
     card(d) {
       migrate(d); let stars = 0, best = 0; Object.values(d.lv || {}).forEach((r) => { stars += r.stars || 0; best += r.best || 0; });
-      const mx = maxStars(), nl = CONTENT.reduce((n, c) => n + c.length, 0), nd = Object.values(d.lv || {}).filter((r) => r.stars > 0).length;
+      const mx = maxStars(), nl = WORLDS.reduce((n, _, wi) => n + allKeys(wi).length, 0), nd = Object.values(d.lv || {}).filter((r) => r.stars > 0).length;
       return { desc: 'Milo explore des labyrinthes néon : glisse pour foncer d’un mur à l’autre, ramasse les pièces et évite les pièges.',
         stats: [['Étoiles', `${stars}/${mx}`, 'star'], ['Pièces', MG.fmt(d.coins || 0), 'crown'], ['Score', MG.fmt(best), 'trophy']],
         progress: stars / (mx || 1), progressLabel: `${nd} niveau${nd > 1 ? 'x' : ''} terminé${nd > 1 ? 's' : ''} sur ${nl}`,
         cta: nd ? 'Continuer l’aventure' : 'Jouer' };
     },
     homeLine(d) { migrate(d); let s = 0; Object.values(d.lv || {}).forEach((r) => (s += r.stars || 0)); return `Milo Maze ${s} étoiles`; },
-    _debug: { G: () => G, UI, launch, start: (w, l) => startLevel(w, l), screen, LV, WORLDS, CONTENT, migrate, worldOpen, unlocked, nextReward, worldPct, setInv: (v) => { if (G) G.milo.invT = v ? 1e9 : 0; }, hitAt: (x, y) => hitAt(x, y, G.time) }
+    _debug: { G: () => G, UI, launch, start: (w, l) => startLevel(w, l), screen, LV, WORLDS, CONTENT, CHAL, SECRET, levelAt, migrate, worldOpen, unlocked, nextReward, worldPct, colStats, setInv: (v) => { if (G) G.milo.invT = v ? 1e9 : 0; }, hitAt: (x, y) => hitAt(x, y, G.time) }
   });
 
   /* =====================================================================
@@ -1270,6 +1540,28 @@
   .mz-wstats div{display:flex;flex-direction:column;align-items:center;padding:9px 4px;border-radius:16px;background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
   .mz-wstats b{font-size:18px;font-weight:900;font-variant-numeric:tabular-nums}.mz-wstats span{font-size:11px;color:#cbbcff;font-weight:800}
   .mz-wsoon{display:flex;gap:8px;align-items:flex-start;margin:4px 4px 0;font-size:12.5px;color:#b9a8ff;line-height:1.4}.mz-wsoon .gi{flex:none;width:15px;height:15px;margin-top:1px}
+  .mz-col{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+  .mz-col span{flex:1;min-width:64px;display:flex;flex-direction:column;align-items:center;gap:1px;padding:8px 4px;border-radius:14px;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+  .mz-col .gi{width:18px;height:18px;stroke:#d9b8ff}.mz-col span.ok .gi{stroke:#ffd84d}.mz-col b{font-size:14px;font-weight:900;font-variant-numeric:tabular-nums}.mz-col small{font-size:10.5px;color:#b9a8ff;font-weight:800}
+  .mz-lvboss{grid-column:1/-1;flex-direction:row!important;justify-content:flex-start;gap:12px;padding:10px 14px!important;text-align:left;background:linear-gradient(120deg,color-mix(in srgb,var(--g) 30%,rgba(10,5,30,.6)),rgba(10,5,30,.6))!important;box-shadow:inset 0 0 0 1.5px var(--e)!important}
+  .mz-lvboss .mz-wemb{position:static;transform:none;width:50px;height:50px;border-radius:16px;flex:none}.mz-lvboss .mz-wemb svg{width:28px;height:28px}
+  .mz-lvboss > span{flex:1;display:flex;flex-direction:column;gap:2px}.mz-lvboss small{font-size:10.5px!important;letter-spacing:.6px;text-transform:uppercase;color:var(--e)!important}.mz-lvboss b{font-size:16px!important;text-shadow:none!important}.mz-lvboss .mz-ls{justify-content:flex-start}
+  .mz-chs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .mz-ch{border:0;border-radius:16px;padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;font:inherit;color:#fff;background:rgba(255,190,40,.1);box-shadow:inset 0 0 0 1.5px rgba(255,200,70,.4)}
+  .mz-ch small{font-size:10px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#ffd96a}.mz-ch b{font-size:13px;font-weight:900;line-height:1.15}.mz-ch > span:not(.mz-ls){font-size:10.5px;color:#d8ccff;font-weight:700}
+  .mz-ch.locked{opacity:.55}.mz-ch.done{background:rgba(255,190,40,.22)}
+  .mz-sec{width:100%;border:0;border-radius:18px;padding:12px 14px;display:flex;align-items:center;gap:12px;text-align:left;font:inherit;color:#fff;background:linear-gradient(120deg,rgba(94,242,255,.16),rgba(169,112,255,.14));box-shadow:inset 0 0 0 1.5px rgba(120,230,255,.45)}
+  .mz-sec .gi{width:30px;height:30px;stroke:#7af6ff;flex:none}.mz-sec span{display:flex;flex-direction:column}.mz-sec b{font-size:16px;font-weight:900}.mz-sec small{font-size:12px;color:#cbbcff}
+  .mz-sec.locked{background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.15)}.mz-sec.locked .gi{stroke:#8a7cc0}
+  .mz-gain{display:flex;align-items:center;gap:10px;margin:6px 0 0;padding:8px 12px;border-radius:14px;background:linear-gradient(120deg,#fff4d6,#f1eaff);text-align:left;font-size:13.5px;font-weight:800;color:#3a2a8a}.mz-gain .gi{width:20px;height:20px;stroke:#c27a00;flex:none}
+  /* HUD : boss, cœurs, cristaux */
+  .mz-bossbar{display:flex;flex-direction:column;gap:4px;margin:8px 2px 0}.mz-bossbar b{font-size:12px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#ffd0f0;text-shadow:0 0 10px rgba(255,80,160,.6)}
+  .mz-bhp{height:10px;border-radius:6px;background:rgba(255,255,255,.14);overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}.mz-bhp i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff3d7f,#ffb340);box-shadow:0 0 12px #ff3d7f;transition:width .35s cubic-bezier(.34,1.56,.64,1)}
+  .mz-xtra{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:6px;min-height:0}.mz-xtra:empty{display:none}
+  .mz-xtra > span{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 10px;border-radius:13px;background:rgba(20,10,50,.6);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);font-size:12px;font-weight:900;font-variant-numeric:tabular-nums}
+  .mz-xtra .gi{width:14px;height:14px}.mz-xc .gi{stroke:#d58bff}.mz-xk .gi{stroke:#ffd84d}.mz-xtra .ok{box-shadow:inset 0 0 0 1px #ffd84d;color:#ffe9a0}.mz-xr{color:#ffd0a0}
+  .mz-hrt{gap:2px!important;padding:0 8px!important}.mz-hrt .gi{width:16px;height:16px;stroke:#ff7aa8;fill:none}.mz-hrt .gi.on{fill:#ff4f7b;stroke:#ff9ab8}
+  .mz-obj em{flex-basis:100%;text-align:center;font-style:normal;font-size:12.5px;font-weight:800;color:#ffe08a;white-space:normal}
   /* transition entre mondes */
   .mz-wtrans{position:absolute;inset:0;z-index:70;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,color-mix(in srgb,var(--g) 55%,var(--b1)),var(--b2) 75%);animation:mzWtIn .45s cubic-bezier(.22,1,.36,1) both;pointer-events:all}
   .mz-wtrans.out{animation:mzWtOut .4s ease-in both}
@@ -1284,7 +1576,7 @@
   .mz-obj small{display:none}
   .mz-obj span{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:800;white-space:nowrap}.mz-obj .gi{width:14px;height:14px;fill:#ffcf3a;stroke:#e19c00}
   .mz-obj.out{opacity:0;transform:translate(-50%,-10px)}
-  .mz-obj:not(.out) ~ .mz-hint{top:176px}
+  .mz-obj:not(.out) ~ .mz-hint{top:176px}.mz-obj.tip:not(.out) ~ .mz-hint{top:228px}
   @media (prefers-reduced-motion:reduce){.mz-wtrans,.mz-wt-in{animation-duration:.01s}}
   .mz-lvgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
   .mz-lv{border:0;border-radius:16px;padding:10px 4px 8px;background:rgba(10,5,30,.55);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--e) 45%,transparent);color:#fff;font:inherit;display:flex;flex-direction:column;align-items:center;gap:3px;transition:transform .15s}
