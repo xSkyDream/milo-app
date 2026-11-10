@@ -20,12 +20,15 @@ const clone = (g) => g.map((r) => r.slice());
      bit 0           interrupteur (0 : barrières rouges « a » fermées, bleues « b » ouvertes ; 1 : l'inverse)
      1 bit / plaque  plaque « P » enfoncée — les grilles « g » s'ouvrent quand TOUTES les plaques le sont
      1 bit parité    murs de grès « y » (fermés quand parité 0) / « Y » (fermés quand parité 1) ; la parité change à chaque arrêt
-     1 bit / dalle   dalle fragile « u » effondrée (elle tombe dès que Milo la quitte) */
+     1 bit / dalle   dalle fragile « u » effondrée (elle tombe dès que Milo la quitte)
+   + positions des blocs gelés « O » (triées) : Milo pousse un bloc qui glisse jusqu'au prochain obstacle
+   « n » neige : Milo s'y arrête net. « w » plateforme de basalte et « D » porte : temporisées, considérées ouvertes. */
 function ctxOf(g) {
   const c = { plates: new Map(), frag: new Map(), gm: 0, par: 0, NM: 2 }; let b = 1;
   for (let y = 0; y < g.length; y++) for (let x = 0; x < W; x++) if (g[y][x] === 'P') { c.plates.set(id(x, y), 1 << b); c.gm |= 1 << b; b++; }
   if (g.some((r) => r.includes('y') || r.includes('Y'))) { c.par = 1 << b; b++; }
   for (let y = 0; y < g.length; y++) for (let x = 0; x < W; x++) if (g[y][x] === 'u') { c.frag.set(id(x, y), 1 << b); b++; }
+  c.ice = []; for (let y = 0; y < g.length; y++) for (let x = 0; x < W; x++) if (g[y][x] === 'O') c.ice.push(id(x, y));
   c.NM = 1 << b; return c;
 }
 function blocked(c, m, ctx, k) {
@@ -38,14 +41,23 @@ function blocked(c, m, ctx, k) {
 }
 const wall0 = (c) => c === undefined || '#agUyY'.includes(c);
 function portalOther(g, x, y, c) { for (let yy = 0; yy < g.length; yy++) for (let xx = 0; xx < W; xx++) if (g[yy][xx] === c && (xx !== x || yy !== y)) return [xx, yy]; return null; }
-function slide(g, ctx, x, y, d, m) {
-  const path = [], seen = new Set();
+// un bloc gelé glisse sur le sol nu et les objets (qu'il ne ramasse pas) ; il s'arrête devant tout le reste
+const ICEOK = ' .SBMVRT*LKQC';
+function pushIce(g, bk, d, B) {
+  let [bx, by] = XY(bk); const others = B.filter((k) => k !== bk); let moved = 0;
+  for (;;) { const tx = bx + DIRS[d][0], ty = by + DIRS[d][1], c = g[ty] && g[ty][tx]; if (c === undefined || !ICEOK.includes(c) || others.includes(id(tx, ty))) break; bx = tx; by = ty; moved++; }
+  return moved ? others.concat([id(bx, by)]).sort((a, b) => a - b) : null;
+}
+function slide(g, ctx, x, y, d, m, B) {
+  const path = [], seen = new Set(); B = B || [];
   for (let i = 0; i < 700; i++) {
     const nx = x + DIRS[d][0], ny = y + DIRS[d][1], c = g[ny] && g[ny][nx], nk = id(nx, ny);
-    if (blocked(c, m, ctx, nk)) return { x, y, d, m, path, exit: false };
+    if (B.length && B.includes(nk)) { const nb = pushIce(g, nk, d, B); return nb ? { x, y, d, m, path, exit: false, B: nb, push: true } : { x, y, d, m, path, exit: false, B }; }
+    if (blocked(c, m, ctx, nk)) return { x, y, d, m, path, exit: false, B };
     const ck = id(x, y); if (ctx.frag.has(ck)) m |= ctx.frag.get(ck); // la dalle quittée s'effondre
     x = nx; y = ny; path.push([x, y]);
     if (c === 'E') return { x, y, d, m, path, exit: true };
+    if (c === 'n') return { x, y, d, m, path, exit: false, B }; // neige : arrêt net
     if (c === 'o') m ^= 1; else if (c === 'P') m |= ctx.plates.get(nk);
     if (c in BOOST) d = BOOST[c];
     else if (c >= '1' && c <= '4') { const o = portalOther(g, x, y, c); if (o) { x = o[0]; y = o[1]; path.push([x, y]); } }
@@ -53,32 +65,34 @@ function slide(g, ctx, x, y, d, m) {
   }
   return { loop: true, path: [] };
 }
-// graphe des états d'arrêt (position + masque) ; sortie = -1. m0 : masque de départ (reprise au checkpoint)
-function solve(g, sx, sy, m0) {
-  const ctx = ctxOf(g), NM = ctx.NM, sid = (x, y, m) => (y * W + x) * NM + m, states = new Map(), order = [];
-  const add = (x, y, m) => { const k = sid(x, y, m); if (!states.has(k)) { states.set(k, { x, y, m, edges: [] }); order.push(k); } return k; };
-  add(sx, sy, m0 || 0);
+// graphe des états d'arrêt (position + masque + blocs) ; sortie = -1. m0 / B0 : état de départ (reprise au checkpoint)
+function solve(g, sx, sy, m0, B0) {
+  const ctx = ctxOf(g); if (ctx.ice.length) g = g.map((r) => r.map((c) => (c === 'O' ? ' ' : c)));
+  const NM = ctx.NM, nb = ctx.ice.length, P = W * g.length, PB = Math.pow(P, nb), enc = (B) => { let v = 0, f = 1; for (const b of B) { v += b * f; f *= P; } return v; };
+  const sid = (x, y, m, B) => ((y * W + x) * NM + m) * PB + (nb ? enc(B) : 0), states = new Map(), order = [];
+  const add = (x, y, m, B) => { const k = sid(x, y, m, B); if (!states.has(k)) { states.set(k, { x, y, m, B, edges: [] }); order.push(k); } return k; };
+  add(sx, sy, m0 || 0, B0 || ctx.ice);
   for (let qi = 0; qi < order.length; qi++) {
     const s = states.get(order[qi]);
     for (let d = 0; d < 4; d++) {
-      const r = slide(g, ctx, s.x, s.y, d, s.m);
+      const r = slide(g, ctx, s.x, s.y, d, s.m, s.B);
       if (r.loop) return { bad: 'loop' };
-      if (!r.path.length) continue;
+      if (!r.path.length && !r.push) continue;
       if (r.exit) s.edges.push({ d, to: -1, path: r.path });
       else {
         let m2 = r.m;
-        if (ctx.par) { m2 ^= ctx.par; const ch = g[r.y][r.x]; if (ch === 'y' || ch === 'Y') return { bad: 'parrest' }; } // un mur de grès ne doit jamais se refermer sur Milo
-        const k = add(r.x, r.y, m2); if (k !== order[qi]) s.edges.push({ d, to: k, path: r.path });
+        if (ctx.par && r.path.length) { m2 ^= ctx.par; const ch = g[r.y][r.x]; if (ch === 'y' || ch === 'Y') return { bad: 'parrest' }; } // un mur de grès ne doit jamais se refermer sur Milo
+        const k = add(r.x, r.y, m2, r.B); if (k !== order[qi]) s.edges.push({ d, to: k, path: r.path, push: !!r.push });
       }
     }
   }
   const trav = new Set(); order.forEach((kk) => states.get(kk).edges.forEach((e) => e.path.forEach(([x, y]) => trav.add(id(x, y)))));
   const rest = new Set(order.map((k) => id(states.get(k).x, states.get(k).y)));
-  const masks = new Set(order.map((k) => states.get(k).m));
+  const masks = new Set(order.map((k) => states.get(k).m)), combos = new Map(); order.forEach((k) => { const st = states.get(k); combos.set(st.m + '|' + st.B.join(','), [st.m, st.B]); });
   const can = new Set(); let ch = true;
   while (ch) { ch = false; for (const k of order) { if (can.has(k)) continue; if (states.get(k).edges.some((e) => e.to === -1 || can.has(e.to))) { can.add(k); ch = true; } } }
   const soft = order.filter((k) => !can.has(k));
-  if (!can.has(order[0])) return { bad: 'noexit', states, order, trav, rest, soft, masks };
+  if (!can.has(order[0])) return { bad: 'noexit', states, order, trav, rest, soft, masks, combos };
   const prev = new Map([[order[0], null]]), q = [order[0]]; let fin = null;
   for (let qi = 0; qi < q.length && !fin; qi++) { const k = q[qi]; for (const e of states.get(k).edges) { if (e.to === -1) { fin = { k, e }; break; } if (!prev.has(e.to)) { prev.set(e.to, { k, e }); q.push(e.to); } } }
   const sol = [fin.e]; let k = fin.k; while (prev.get(k)) { const p = prev.get(k); sol.unshift(p.e); k = p.k; }
@@ -87,12 +101,12 @@ function solve(g, sx, sy, m0) {
   // fortement connexe : tout état peut revenir au départ (aucun choix irréversible)
   const back = new Set([order[0]]); let ch2 = true;
   while (ch2) { ch2 = false; for (const kk of order) { if (back.has(kk)) continue; if (states.get(kk).edges.some((e) => e.to !== -1 && back.has(e.to))) { back.add(kk); ch2 = true; } } }
-  return { states, order, soft, sol, trav, solTiles, rest, solRest, masks, scc: back.size === order.length };
+  return { states, order, soft, sol, trav, solTiles, rest, solRest, masks, combos, scc: back.size === order.length };
 }
 // reprise au checkpoint : depuis la case k, avec N'IMPORTE QUEL état atteignable du niveau, la sortie reste accessible sans impasse
 function cpSafe(g, sx, sy, k) {
   const s = solve(g, sx, sy); if (s.bad) return false; const [x, y] = XY(k);
-  for (const m of s.masks) { const r = solve(g, x, y, m); if (r.bad || r.soft.length) return false; }
+  for (const [m, B] of s.combos.values()) { const r = solve(g, x, y, m, B); if (r.bad || r.soft.length) return false; }
   return true;
 }
 // plus court chemin qui passe par la case T puis rejoint la sortie (pour vérifier/rejouer la clé secrète)
@@ -157,7 +171,8 @@ function makeLevel(cfg, seed) {
 function decorate(g, sol, cfg, R, sx, sy, H) {
   const ri = (a, b) => a + Math.floor(R() * (b - a + 1)), shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const at = (k) => { const [x, y] = XY(k); return g[y][x]; }, put = (gg, k, ch) => { const [x, y] = XY(k); gg[y][x] = ch; };
-  const ents = [], mech = { gates: 0, toggles: 0, hidden: 0, shift: 0, frag: 0, cps: 0 };
+  const ents = [], mech = { gates: 0, toggles: 0, hidden: 0, shift: 0, frag: 0, cps: 0, snow: 0, ice: 0 };
+  if (cfg.ice && (cfg.saws || cfg.patrols || cfg.blocks)) throw new Error('blocs gelés : pas d’ennemis qui creusent des couloirs');
   const near = (k, k2, r) => { const [a, b] = XY(k), [c, d] = XY(k2); return Math.abs(a - c) + Math.abs(b - d) <= r; };
   const S = id(sx, sy); let Ek = -1; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (g[y][x] === 'E') Ek = id(x, y);
   const used = new Set([S, Ek]);
@@ -170,6 +185,9 @@ function decorate(g, sol, cfg, R, sx, sy, H) {
   for (const k of shuffle([...sol.trav].filter(free))) { if (!nb) break; const [x, y] = XY(k); const opts = [0, 1, 2, 3].filter((d) => !wall0(g[y + DIRS[d][1]] && g[y + DIRS[d][1]][x + DIRS[d][0]])); if (!opts.length) continue; const s = tryPlace(k, '^>v<'[opts[Math.floor(R() * opts.length)]]); if (s) { sol = s; used.add(k); nb--; } }
   let nd = cfg.doors || 0;
   for (const k of shuffle([...sol.solTiles].filter(free))) { if (!nd) break; const [x, y] = XY(k); const s = tryPlace(k, 'D'); if (s) { sol = s; used.add(k); DIRS.forEach(([dx, dy]) => used.add(id(x + dx, y + dy))); nd--; } }
+  // --- plateformes de basalte « w » (temporisées, comme les portes)
+  let nw = cfg.plats || 0;
+  if (nw) for (const k of shuffle([...sol.solTiles].filter(free))) { if (!nw) break; const [x, y] = XY(k); if (DIRS.some(([dx, dy]) => 'Dw'.includes(g[y + dy][x + dx]))) continue; const s = tryPlace(k, 'w'); if (s) { sol = s; used.add(k); DIRS.forEach(([dx, dy]) => used.add(id(x + dx, y + dy))); nw--; } }
   // --- grille + plaque : la grille doit VRAIMENT bloquer, la plaque est accessible avant
   for (let t = 0; t < 40 && (cfg.gates || 0) > mech.gates; t++) {
     const cand = shuffle([...sol.solTiles].filter(free)); if (!cand.length) break;
@@ -227,10 +245,31 @@ function decorate(g, sol, cfg, R, sx, sy, H) {
     }
     if (!mech.frag) return null;
   }
+  // --- neige « n » : Milo s'y arrête net ; elle doit compter dans le trajet
+  if (cfg.snow) {
+    for (let t = 0; t < 120 && !mech.snow; t++) {
+      const gb = clone(g), tiles = []; for (const k of shuffle([...sol.solTiles].filter(free))) { if (tiles.length >= cfg.snow) break; if (tiles.some((o) => near(o, k, 2))) continue; tiles.push(k); }
+      if (tiles.length < cfg.snow) break; tiles.forEach((k) => put(gb, k, 'n'));
+      const s = solve(gb, sx, sy); if (!okSol(s) || !onPath(s, gb, 'n')) continue;
+      for (let y = 0; y < H; y++) g[y] = gb[y]; sol = s; tiles.forEach((k) => used.add(k)); mech.snow = tiles.length;
+    }
+    if (!mech.snow) return null;
+  }
+  // --- blocs gelés « O » : la solution doit pousser au moins un bloc ; aucune impasse quelle que soit la façon de les pousser
+  if (cfg.ice) {
+    for (let t = 0; t < 160 && !mech.ice; t++) {
+      const gb = clone(g), tiles = []; for (const k of shuffle([...sol.trav].filter((k) => free(k) && !near(k, S, 3) && !near(k, Ek, 2)))) { if (tiles.length >= cfg.ice) break; if (tiles.some((o) => near(o, k, 3))) continue; tiles.push(k); }
+      if (tiles.length < cfg.ice) break; tiles.forEach((k) => put(gb, k, 'O'));
+      const s = solve(gb, sx, sy); if (!okSol(s) || !s.sol.some((e) => e.push)) continue;
+      for (let y = 0; y < H; y++) g[y] = gb[y]; sol = s; mech.ice = tiles.length;
+    }
+    if (!mech.ice) return null;
+    sol.order.forEach((k) => sol.states.get(k).B.forEach((b) => used.add(b))); // cases que les blocs peuvent occuper : rien dessus
+  }
   // --- passage secret (mur fissuré « H ») vers la clé « K » ou la relique « Q » : facultatif, jamais requis
   const secret = (ch) => {
     // arrêts où l'on n'entre jamais « par hasard » dans le passage (aucune glissade ne s'y arrête en allant dans cette direction)
-    const arrive = new Set(); sol.order.forEach((k) => { const st = sol.states.get(k); st.edges.forEach((e) => { if (e.to === -1) return; const p = e.path, a = p.length > 1 ? p[p.length - 2] : [st.x, st.y], b = p[p.length - 1]; const dd = DIRS.findIndex(([dx, dy]) => dx === b[0] - a[0] && dy === b[1] - a[1]); arrive.add(id(b[0], b[1]) * 4 + dd); }); });
+    const arrive = new Set(); sol.order.forEach((k) => { const st = sol.states.get(k); st.edges.forEach((e) => { if (e.to === -1 || !e.path.length) return; const p = e.path, a = p.length > 1 ? p[p.length - 2] : [st.x, st.y], b = p[p.length - 1]; const dd = DIRS.findIndex(([dx, dy]) => dx === b[0] - a[0] && dy === b[1] - a[1]); arrive.add(id(b[0], b[1]) * 4 + dd); }); });
     for (const rk of shuffle([...sol.rest])) {
       if (near(rk, S, 2) || near(rk, Ek, 2)) continue; const [rx, ry] = XY(rk);
       for (const d of shuffle([0, 1, 2, 3])) {
@@ -266,8 +305,8 @@ function decorate(g, sol, cfg, R, sx, sy, H) {
   }
   // --- pièges temporisés, segments, ennemis (règles d'origine) ; « i » : piège caché (Forêt)
   const onSol = shuffle([...sol.solTiles].filter(free));
-  for (const [ch, n0] of [['x', cfg.spikes || 0], ['z', cfg.elec || 0], ['k', cfg.blink || 0], ['i', cfg.hidden || 0]]) { let n = n0; for (const k of onSol) { if (!n) break; if (used.has(k) || at(k) !== ' ') continue; put(g, k, ch); used.add(k); n--; } }
-  const passCh = (c) => c !== undefined && c !== '#' && !(c >= '1' && c <= '4') && !'DEgabHPoKQFuUyYL'.includes(c);
+  for (const [ch, n0] of [['x', cfg.spikes || 0], ['z', cfg.elec || 0], ['k', cfg.blink || 0], ['i', cfg.hidden || 0], ['j', cfg.geysers || 0]]) { let n = n0; for (const k of onSol) { if (!n) break; if (used.has(k) || at(k) !== ' ') continue; put(g, k, ch); used.add(k); n--; } }
+  const passCh = (c) => c !== undefined && c !== '#' && !(c >= '1' && c <= '4') && !'DEgabHPoKQFuUyYLwnO'.includes(c);
   const run = (k, axis) => { const [x, y] = XY(k), [dx, dy] = axis ? [0, 1] : [1, 0]; let a = 0, b = 0; const okc = (xx, yy) => passCh(g[yy] && g[yy][xx]);
     while (okc(x - dx * (a + 1), y - dy * (a + 1))) a++; while (okc(x + dx * (b + 1), y + dy * (b + 1))) b++;
     const cells = []; for (let i = -a; i <= b; i++) cells.push(id(x + dx * i, y + dy * i)); return cells; };
@@ -323,13 +362,20 @@ function decorate(g, sol, cfg, R, sx, sy, H) {
   const fin = solve(g, sx, sy); if (!okSol(fin)) return null;
   if (cfg.scc && !fin.scc) return null;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (g[y][x] === 'F' && !cpSafe(g, sx, sy, id(x, y))) return null;
-  const tiles = fin.sol.reduce((n, e) => n + e.path.length, 0), hz = ents.length + (cfg.spikes || 0) + (cfg.elec || 0) + (cfg.blink || 0) + (cfg.hidden || 0) + (cfg.doors || 0) + mech.gates + mech.toggles + mech.shift * 0.5 + mech.frag * 0.5;
+  const tiles = fin.sol.reduce((n, e) => n + e.path.length, 0), hz = ents.length + (cfg.spikes || 0) + (cfg.elec || 0) + (cfg.blink || 0) + (cfg.hidden || 0) + (cfg.geysers || 0) + (cfg.doors || 0) + (cfg.plats || 0) + mech.gates + mech.toggles + mech.shift * 0.5 + mech.frag * 0.5 + mech.ice;
   const par = Math.round((fin.sol.length * 0.75 + tiles / 12 + hz * 0.9 + 3) * (cfg.dark ? 1.15 : 1));
   const lv = { h: H, rows: g.map((r) => r.join('')), ents, coins, moves: fin.sol.length, par, sol: fin.sol.map((e) => e.d).join('') };
   if (cfg.dark) lv.dark = cfg.dark;
   if (keyTile >= 0) lv.ksol = solveVia(g, sx, sy, keyTile);
   if (relicTile >= 0) lv.qsol = solveVia(g, sx, sy, relicTile);
   if ((keyTile >= 0 && !lv.ksol) || (relicTile >= 0 && !lv.qsol)) return null;
+  // --- lave montante : vitesse calculée pour qu'un joueur posé (≈ 1,3 s de réflexion par coup) passe, y compris par la clé ou la relique
+  if (cfg.lava) {
+    const grace = cfg.lava.g || 4, T0 = cfg.lava.t || 1.3; let vmax = Infinity;
+    for (const r of [lv.sol, lv.ksol, lv.qsol].filter(Boolean)) { let cur = fin.order[0], t = 0;
+      for (const ch of r) { const st = fin.states.get(cur), e = st.edges.find((q) => q.d === +ch); if (!e) break; t += T0 + e.path.length / 13; const yl = Math.max(st.y, ...e.path.map((p2) => p2[1])); if (t > grace) vmax = Math.min(vmax, (H - 2 - yl) / (t - grace)); if (e.to === -1) break; cur = e.to; } }
+    lv.lava = { v: +Math.max(0.2, Math.min(1.1, vmax * 0.8 * (cfg.lava.k || 1))).toFixed(3), g: grace };
+  }
   lv._q = quality(lv, fin, cfg, mech); return lv;
 }
 // score de qualité : choix réels, variété des directions, taille du graphe, utilisation des mécaniques
@@ -337,7 +383,7 @@ function quality(lv, s, cfg, mech) {
   let decisions = 0; s.order.forEach((k) => { const d = new Set(s.states.get(k).edges.map((e) => e.to)); if (d.size >= 3) decisions++; });
   let turns = 0; for (let i = 1; i < lv.sol.length; i++) if (lv.sol[i] !== lv.sol[i - 1]) turns++;
   const target = (cfg.minMoves + cfg.maxMoves) / 2, horiz = [...lv.sol].filter((c) => c === '1' || c === '3').length;
-  return +(decisions * 2 + Math.min(s.order.length, 90) * 0.25 + turns * 0.5 + horiz * 0.4 - Math.abs(lv.moves - target) * 1.2 + (mech.gates + mech.toggles + (mech.shift ? 1 : 0) + (mech.frag ? 1 : 0)) * 2).toFixed(2);
+  return +(decisions * 2 + Math.min(s.order.length, 90) * 0.25 + turns * 0.5 + horiz * 0.4 - Math.abs(lv.moves - target) * 1.2 + (mech.gates + mech.toggles + (mech.shift ? 1 : 0) + (mech.frag ? 1 : 0) + (mech.snow ? 1 : 0) + mech.ice) * 2).toFixed(2);
 }
 function best(cfg, seed, n) {
   let top = null;
@@ -364,6 +410,8 @@ function arena(rows, boss) {
   });
   // de chaque case d'arrêt, on peut sortir de sa ligne ET de sa colonne (esquive toujours possible)
   restSet.forEach((k) => { const [x, y] = XY(k); const o = (dx, dy) => { const c = g[y + dy] && g[y + dy][x + dx]; return c && c !== '#'; }; if (!(o(1, 0) || o(-1, 0)) || !(o(0, 1) || o(0, -1))) throw new Error('arrêt sans esquive ' + x + ',' + y); });
+  // inondation de lave (rangées du bas) : depuis chaque arrêt inondable, une seule glissade suffit pour en sortir
+  if (boss.flood) { const top = rows.length - 1 - boss.flood; order.forEach((k) => { const st = states.get(k); if (st.y < top) return; if (!st.edges.some((e) => e.to !== -1 && states.get(e.to).y < top)) throw new Error('arrêt sans fuite face à la lave ' + st.x + ',' + st.y); }); }
   // itinéraire du départ vers chaque cible successive (pour les tests automatiques)
   const route = []; let cur = [sx, sy];
   for (const t of boss.targets) {
@@ -500,6 +548,61 @@ const SABLES = {
   secret: { name: 'La chambre du trésor', h: 48, up: 6, minMoves: 11, maxMoves: 19, branches: 8, rooms: 0.45, coinRate: 1, cp: 1, chest: 2, relic: true, frag: 2, shift: 2, arrows: 2, esp: 2.7, obj: [{ t: 'relic' }, { t: 'allcoins' }], tip: 'Niveau secret : une relique se cache derrière un mur fissuré.' }
 };
 
+/* ---------- Contenu des mondes 5 et 6 (palier difficile) ---------- */
+const LV = (k) => ({ k });
+const GLACE = {
+  main: [
+    { h: 50, up: 6, minMoves: 12, maxMoves: 20, branches: 6, rooms: 0.3, cp: 1, bonus: ['B'], snow: 3, spikes: 3, patrols: 1, patrolKind: 'bat', esp: 2.6, obj: [{ t: 'coins', p: 0.7 }, T_TIME], tip: 'Nouveau : la neige arrête Milo net. Sers-t’en pour viser.' },
+    { h: 52, up: 6, minMoves: 12, maxMoves: 21, branches: 7, rooms: 0.3, cp: 2, bonus: ['M'], frag: 2, snow: 2, blink: 3, patrols: 1, patrolKind: 'slime', esp: 2.7, crystals: 3, obj: [{ t: 'crystals' }, T_TIME], tip: 'La glace fragile casse derrière toi : pas de retour possible.' },
+    { h: 52, up: 6, minMoves: 12, maxMoves: 21, branches: 7, rooms: 0.3, cp: 2, bonus: ['B'], ice: 1, snow: 2, spikes: 2, lasers: 1, esp: 2.7, obj: [{ t: 'coins', p: 0.7 }, T_TIME], tip: 'Blocs gelés : fonce dedans pour les pousser jusqu’au prochain obstacle.' },
+    { h: 54, up: 7, minMoves: 13, maxMoves: 22, branches: 7, rooms: 0.3, cp: 2, bonus: ['B', 'M'], ice: 1, snow: 2, blink: 3, lasers: 1, esp: 2.8, key: true, obj: [{ t: 'key' }, T_TIME], tip: 'Un mur fissuré cache la clé du niveau secret.' },
+    { h: 56, up: 7, minMoves: 13, maxMoves: 22, branches: 8, rooms: 0.3, cp: 2, bonus: ['M'], frag: 2, snow: 3, gates: 1, spikes: 3, patrols: 2, patrolKind: 'bat', esp: 2.8, crystals: 3, chest: 1, obj: [{ t: 'crystals' }, T_TIME] },
+    { h: 56, up: 7, minMoves: 14, maxMoves: 23, branches: 8, rooms: 0.3, cp: 2, bonus: ['B'], ice: 2, snow: 2, toggles: { sw: 1, bar: 2 }, elec: 3, lasers: 2, esp: 2.8, obj: [{ t: 'nohit' }, T_TIME] },
+    { h: 58, up: 7, minMoves: 14, maxMoves: 24, branches: 8, rooms: 0.3, cp: 2, bonus: ['M', 'B'], frag: 3, snow: 2, blink: 4, patrols: 2, patrolKind: 'slime', saws: 1, esp: 2.9, crystals: 3, obj: [{ t: 'crystals' }, T_TIME] },
+    { h: 58, up: 7, minMoves: 14, maxMoves: 24, branches: 8, rooms: 0.3, cp: 2, bonus: ['B'], ice: 1, snow: 3, gates: 1, plates: 2, lasers: 2, spikes: 3, esp: 2.9, chest: 1, obj: [{ t: 'coins', p: 0.75 }, T_TIME], tip: 'Énigme : 2 sceaux, des blocs gelés et de la neige pour viser.' },
+    { h: 60, up: 7, minMoves: 15, maxMoves: 25, branches: 9, rooms: 0.3, cp: 2, bonus: ['B', 'M'], frag: 2, snow: 3, toggles: { sw: 2, bar: 3 }, patrols: 3, patrolKind: 'bat', blink: 3, esp: 3, obj: [{ t: 'nobonus' }, T_TIME] },
+    { h: 60, up: 7, minMoves: 15, maxMoves: 25, branches: 9, rooms: 0.3, cp: 2, bonus: ['M'], ice: 2, snow: 2, elec: 4, lasers: 2, esp: 3, crystals: 3, obj: [{ t: 'crystals' }, T_TIME] },
+    { h: 62, up: 7, minMoves: 15, maxMoves: 26, branches: 9, rooms: 0.3, cp: 2, bonus: ['B'], snow: 4, frag: 2, gates: 1, boosters: 2, patrols: 3, patrolKind: 'slime', saws: 1, esp: 3.1, obj: [{ t: 'nohit' }, T_TIME] },
+    { h: 62, up: 7, minMoves: 16, maxMoves: 26, branches: 9, rooms: 0.3, cp: 2, bonus: ['M', 'B'], ice: 2, snow: 3, toggles: { sw: 1, bar: 3 }, lasers: 3, spikes: 3, esp: 3.1, chest: 1, crystals: 3, obj: [{ t: 'crystals' }, T_TIME] },
+    { h: 64, up: 7, minMoves: 16, maxMoves: 27, branches: 9, rooms: 0.3, cp: 2, bonus: ['B'], frag: 3, snow: 3, blink: 4, patrols: 3, patrolKind: 'bat', saws: 2, esp: 3.2, obj: [{ t: 'coins', p: 0.8 }, T_TIME] },
+    { h: 66, up: 7, minMoves: 16, maxMoves: 28, branches: 10, rooms: 0.3, cp: 2, bonus: ['M'], ice: 2, snow: 3, gates: 1, plates: 2, lasers: 3, elec: 4, esp: 3.2, crystals: 3, chest: 1, obj: [{ t: 'crystals' }, T_TIME] }
+  ],
+  boss: arena(['###########', '###########', '###########', '#.........#', '#.#.....#.#', '#...#.#...#', '##...#...##', '#....#....#', '#.........#', '##.#...#.##', '##.......##', '#...#.#...#', '#...#.#...#', '#.#.....#.#', '#.###.###.#', '#....S....#', '###########'],
+    { kind: 'titan', name: 'Le Titan de glace', hp: 6, par: 85, targets: [[1, 3], [9, 15], [7, 8], [1, 12], [8, 6], [3, 13]] }),
+  defis: [
+    { name: 'Glissade express', rule: { t: 'timer' }, h: 52, up: 7, minMoves: 13, maxMoves: 20, branches: 5, rooms: 0.2, bonus: ['V'], snow: 2, boosters: 3, spikes: 2, blink: 2, esp: 2.9, obj: [T_TIME, { t: 'time', k: 0.8 }], tip: 'Défi : atteins la sortie avant la fin du chrono.' },
+    { name: 'Sans un frisson', rule: { t: 'nohit' }, h: 54, up: 7, minMoves: 13, maxMoves: 21, branches: 6, rooms: 0.3, bonus: ['M'], snow: 3, lasers: 3, blink: 3, patrols: 2, patrolKind: 'bat', esp: 3, obj: [{ t: 'allcoins' }, T_TIME], tip: 'Défi : un seul coup et c’est fini (pas de cœurs, pas de bouclier).' },
+    { name: 'Récolte givrée', rule: { t: 'allcoins' }, h: 46, up: 6, minMoves: 10, maxMoves: 18, branches: 7, rooms: 0.35, scc: true, cp: 1, snow: 3, spikes: 2, patrols: 1, patrolKind: 'slime', esp: 2.7, obj: [T_TIME, { t: 'nohit' }], tip: 'Défi : la sortie reste fermée tant qu’il reste des pièces.' }
+  ],
+  secret: { name: 'La grotte de cristal', h: 50, up: 6, minMoves: 11, maxMoves: 20, branches: 8, rooms: 0.45, coinRate: 1, cp: 1, chest: 2, relic: true, snow: 3, ice: 1, blink: 3, esp: 2.8, obj: [{ t: 'relic' }, { t: 'allcoins' }], tip: 'Niveau secret : une relique se cache derrière un mur fissuré.' }
+};
+const VOLCAN = {
+  main: [
+    { h: 50, up: 6, minMoves: 12, maxMoves: 20, branches: 6, rooms: 0.3, cp: 1, lava: LV(0.65), bonus: ['B'], geysers: 3, spikes: 2, patrols: 1, patrolKind: 'bat', esp: 2.6, obj: [{ t: 'coins', p: 0.55 }, T_TIME], tip: 'Nouveau : la lave monte ! Ne traîne pas, les checkpoints te sauvent.' },
+    { h: 52, up: 6, minMoves: 12, maxMoves: 21, branches: 7, rooms: 0.3, cp: 2, bonus: ['M'], plats: 2, geysers: 3, patrols: 1, patrolKind: 'slime', esp: 2.7, crystals: 3, chest: 1, obj: [{ t: 'crystals' }, T_TIME], tip: 'Les dalles de basalte s’enfoncent dans la lave, puis remontent.' },
+    { h: 52, up: 6, minMoves: 12, maxMoves: 21, branches: 7, rooms: 0.3, cp: 2, lava: LV(0.72), bonus: ['B'], geysers: 4, saws: 1, patrols: 1, patrolKind: 'bat', esp: 2.7, obj: [{ t: 'nohit' }, T_TIME], tip: 'Geysers : ils bouillonnent juste avant de cracher le feu.' },
+    { h: 54, up: 7, minMoves: 13, maxMoves: 22, branches: 7, rooms: 0.3, cp: 2, lava: LV(0.72), bonus: ['B', 'M'], plats: 2, geysers: 3, patrols: 2, patrolKind: 'slime', esp: 2.8, key: true, obj: [{ t: 'key' }, T_TIME], tip: 'Un mur fissuré cache la clé du niveau secret.' },
+    { h: 56, up: 7, minMoves: 13, maxMoves: 22, branches: 8, rooms: 0.3, cp: 2, bonus: ['M'], plats: 2, gates: 1, geysers: 4, blocks: 1, esp: 2.8, crystals: 3, chest: 1, obj: [{ t: 'crystals' }, { t: 'allcoins' }] },
+    { h: 56, up: 7, minMoves: 14, maxMoves: 23, branches: 8, rooms: 0.3, cp: 2, lava: LV(0.78), bonus: ['B'], plats: 2, geysers: 4, toggles: { sw: 1, bar: 2 }, patrols: 2, patrolKind: 'bat', esp: 2.9, obj: [{ t: 'coins', p: 0.55 }, T_TIME] },
+    { h: 58, up: 7, minMoves: 14, maxMoves: 24, branches: 8, rooms: 0.3, cp: 2, lava: LV(0.8), bonus: ['M', 'B'], plats: 2, geysers: 4, saws: 2, esp: 2.9, obj: [{ t: 'nohit' }, T_TIME] },
+    { h: 58, up: 7, minMoves: 14, maxMoves: 24, branches: 8, rooms: 0.3, cp: 2, bonus: ['B'], plats: 3, geysers: 5, gates: 1, plates: 2, patrols: 2, patrolKind: 'slime', esp: 2.9, crystals: 3, chest: 1, obj: [{ t: 'crystals' }, T_TIME] },
+    { h: 60, up: 7, minMoves: 15, maxMoves: 25, branches: 9, rooms: 0.3, cp: 2, lava: LV(0.85), bonus: ['B', 'M'], geysers: 4, toggles: { sw: 1, bar: 3 }, patrols: 3, patrolKind: 'bat', esp: 3, obj: [{ t: 'nobonus' }, T_TIME] },
+    { h: 60, up: 7, minMoves: 15, maxMoves: 25, branches: 9, rooms: 0.3, cp: 2, bonus: ['M'], plats: 2, geysers: 5, blocks: 1, saws: 1, esp: 3, crystals: 3, obj: [{ t: 'crystals' }, T_TIME] },
+    { h: 62, up: 7, minMoves: 15, maxMoves: 26, branches: 9, rooms: 0.3, cp: 2, lava: LV(0.9), bonus: ['B'], plats: 3, geysers: 4, saws: 2, boosters: 2, esp: 3.1, obj: [{ t: 'coins', p: 0.55 }, T_TIME] },
+    { h: 62, up: 7, minMoves: 16, maxMoves: 26, branches: 9, rooms: 0.3, cp: 2, bonus: ['M', 'B'], plats: 3, geysers: 5, gates: 1, patrols: 3, patrolKind: 'slime', esp: 3.1, crystals: 3, chest: 1, obj: [{ t: 'crystals' }, { t: 'nohit' }] },
+    { h: 64, up: 7, minMoves: 16, maxMoves: 27, branches: 9, rooms: 0.3, cp: 2, lava: LV(0.95), bonus: ['B'], plats: 3, geysers: 5, blocks: 1, saws: 2, esp: 3.2, obj: [{ t: 'nohit' }, T_TIME] },
+    { h: 66, up: 7, minMoves: 16, maxMoves: 28, branches: 10, rooms: 0.3, cp: 2, lava: LV(1), bonus: ['M'], plats: 3, geysers: 5, toggles: { sw: 2, bar: 4 }, patrols: 3, patrolKind: 'bat', esp: 3.2, obj: [{ t: 'coins', p: 0.55 }, T_TIME] }
+  ],
+  boss: arena(['###########', '###########', '###########', '#.........#', '#.....#.#.#', '#..#......#', '##...#....#', '#...#....##', '#.#.......#', '#..##.#...#', '#...###...#', '##.....#.##', '#..#...#..#', '#.........#', '#.........#', '#....S....#', '###########'],
+    { kind: 'golem', name: 'Le Golem volcanique', hp: 6, par: 85, flood: 2, targets: [[9, 3], [1, 15], [6, 8], [9, 12], [2, 5], [6, 15]] }),
+  defis: [
+    { name: 'Fuite de lave', rule: { t: 'timer' }, h: 52, up: 7, minMoves: 13, maxMoves: 20, branches: 5, rooms: 0.2, lava: LV(0.9), bonus: ['V'], boosters: 3, geysers: 3, esp: 2.9, obj: [T_TIME, { t: 'time', k: 0.8 }], tip: 'Défi : atteins la sortie avant le chrono… et avant la lave.' },
+    { name: 'Pas une brûlure', rule: { t: 'nohit' }, h: 54, up: 7, minMoves: 13, maxMoves: 21, branches: 6, rooms: 0.3, lava: LV(0.7), bonus: ['M'], geysers: 6, plats: 2, patrols: 1, patrolKind: 'bat', esp: 3, obj: [{ t: 'coins', p: 0.6 }, T_TIME], tip: 'Défi : un seul coup et c’est fini (pas de cœurs, pas de bouclier).' },
+    { name: 'Trésor en fusion', rule: { t: 'allcoins' }, h: 46, up: 6, minMoves: 10, maxMoves: 18, branches: 7, rooms: 0.35, scc: true, cp: 1, plats: 2, geysers: 3, patrols: 1, patrolKind: 'slime', esp: 2.7, obj: [T_TIME, { t: 'nohit' }], tip: 'Défi : la sortie reste fermée tant qu’il reste des pièces.' }
+  ],
+  secret: { name: 'La forge oubliée', h: 50, up: 6, minMoves: 11, maxMoves: 20, branches: 8, rooms: 0.45, coinRate: 1, cp: 1, chest: 2, relic: true, plats: 2, geysers: 3, saws: 1, esp: 2.8, obj: [{ t: 'relic' }, { t: 'allcoins' }], tip: 'Niveau secret : une relique se cache derrière un mur fissuré.' }
+};
+
 function build(cfg, seed, n) {
   const lv = best(cfg, seed, n);
   delete lv._q; lv.obj = cfg.obj; if (cfg.tip) lv.tip = cfg.tip; if (cfg.rule) lv.rule = cfg.rule; if (cfg.name) lv.name = cfg.name;
@@ -509,7 +612,7 @@ function build(cfg, seed, n) {
 // mondes déjà publiés : conservés (sauf ONLY=…) ; LEG = nombre de niveaux d'origine avant les niveaux générés
 const OUT = process.argv[2] || 'maze-levels-v2.js', N = +(process.env.CAND || 8), ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
 let prev = {}; try { global.window = {}; require(require('path').resolve(OUT)); prev = global.window.MILO_MAZE_EXTRA || {}; } catch (e) { prev = {}; }
-const WORLDS_GEN = [['ruines', RUINES, 5000, 6], ['cyber', CYBER, 7000, 6], ['foret', FORET, 9000, 0], ['sables', SABLES, 11000, 6]];
+const WORLDS_GEN = [['ruines', RUINES, 5000, 6], ['cyber', CYBER, 7000, 6], ['foret', FORET, 9000, 0], ['sables', SABLES, 11000, 6], ['glace', GLACE, 13000, 0], ['volcan', VOLCAN, 15000, 0]];
 const out = {};
 for (const [wid, W2, base, LEG] of WORLDS_GEN) {
   if (ONLY.length ? !ONLY.includes(wid) : prev[wid]) { if (prev[wid]) out[wid] = prev[wid]; process.stderr.write(`${wid} : conservé\n`); continue; }
@@ -524,7 +627,8 @@ const js = `/* Milo Maze — contenu V2 (tools/maze/gen2.js) : niveaux des monde
    Nouvelles cases : P plaque · g grille (s'ouvre quand toutes les plaques sont enfoncées) · o interrupteur · a barrière rouge · b barrière bleue
                      H mur fissuré (passage secret) · K clé secrète · Q relique · C coffre · * cristal
                      F checkpoint · L lucioles · i piège caché · u dalle fragile · y / Y murs de grès (changent à chaque arrêt)
-   Entités : arrow (piège à flèches). Niveau « dark » : obscurité (rayon de lumière en cases).
+                     n neige (arrêt net) · O bloc gelé (se pousse) · w plateforme de basalte (temporisée) · j geyser
+   Entités : arrow (piège à flèches). Niveau « dark » : obscurité (rayon de lumière en cases). « lava » : lave montante {v cases/s, g délai}.
    Les niveaux de boss (boss:{…}) sont des arènes conçues à la main et vérifiées. */
 window.MILO_MAZE_EXTRA = ${JSON.stringify(out)};
 `;
