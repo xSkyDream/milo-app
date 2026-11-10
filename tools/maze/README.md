@@ -16,6 +16,8 @@
   Prismes : au checkpoint, le moteur remet les prismes dans l'état du dernier arrêt (état vérifié par le générateur).
 - `t1.js` : bot de non-régression — joue tous les niveaux historiques dans le vrai moteur (Playwright).
 - `t2.js` : bot V2 — niveaux enrichis, boss, défis, niveaux secrets, collection et déblocages.
+- `t3.js` : bot UI — clique les vrais boutons (défis, niveau secret, modes de jeu : jour, semaine, contre-la-montre,
+  sans faute, survie, exploration) et vérifie qu'aucun mode n'écrit dans les étoiles / records des niveaux.
 - `test-migration.js` : vérifie la migration des anciennes sauvegardes (v1 → v2).
 - `srv.js` : petit serveur local utilisé par les tests (sert `public/`).
 

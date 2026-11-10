@@ -87,6 +87,13 @@
     swipe: '<path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"/><path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4" opacity=".35"/>', check: '<path d="M20 6 9 17l-5-5"/>', gem: '<path d="M6 3h12l3 6-9 12L3 9z"/><path d="M3 9h18"/>', key: '<circle cx="8" cy="12" r="4"/><path d="M12 12h9M18 12v3M15 12v2"/>', heart: '<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/>', relic: '<circle cx="12" cy="12" r="4"/><ellipse cx="12" cy="12" rx="9.5" ry="3.5"/>', chest: '<path d="M4 10h16v9H4zM4 10a8 5 0 0 1 16 0"/><path d="M11 13h2"/>', trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', next: '<path d="m9 18 6-6-6-6"/>'
   };
   IC.flag = '<path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/>';
+  IC.modes = '<path d="M13 3 5 13h6l-1 8 8-10h-6z"/>';
+  IC.cal = '<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>';
+  IC.calw = '<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h2M11 14h2M14 14h2M8 17h2"/>';
+  IC.flame = '<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5.5.5 1.5 1.3 2.5 2.5 2.5-.8-2.3-.6-4.6 0-7z"/>';
+  IC.target = '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/>';
+  IC.compass = '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/>';
+  IC.medal = '<circle cx="12" cy="15" r="5"/><path d="M9 3l2.5 7M15 3l-2.5 7M8 3h8"/>';
   IC.prism = '<path d="M12 4l8 15H4z"/><path d="M12 4l1.5 15"/><path d="M3 7l2 1.5M21 7l-2 1.5"/>';
   IC.lava = '<path d="M12 3c2 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-5 3-7 1 2 2 3 3 3-1-3 0-5 0-7z"/>';
   const ico = (n, c) => IC[n] ? `<svg class="gi ${c || ''}" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>` : MG.icon(n, c);
@@ -257,8 +264,8 @@
       bon: { shield: false, magnet: 0, speed: 0, slow: 0, tele: 0 }, buf: null, ents: [], timed: [], doors: [], torches: [], parts: [], trail: [], flyers: [], texts: [],
       cam: 0, camT: 0, shake: 0, hits: 0, deaths: 0, startY: 0, portals: {}, dead: false, endT: 0, slowK: 1, magnetR: 2.6, bonusDur: 1 + 0.2 * ((data().upg || {}).dur || 0),
       // V2 : interrupteurs (tog), grilles (gate), passages révélés, collection, règles de défi, cœurs, boss
-      tog: 0, gate: false, rev: new Set(), crystals: 0, crTotal: 0, key: false, relic: false, chests: 0, rule: L.rule || null, exitOpen: !(L.rule && L.rule.t === 'allcoins'),
-      hearts: heartsFor(wi, L), maxHearts: heartsFor(wi, L), boss: null, proj: [], warns: [], beams: [],
+      tog: 0, gate: false, rev: new Set(), crystals: 0, crTotal: 0, key: false, relic: false, chests: 0, rule: runRule(L), exitOpen: !(runRule(L) && runRule(L).t === 'allcoins'),
+      hearts: heartsFor(wi, L, runRule(L)), maxHearts: heartsFor(wi, L, runRule(L)), boss: null, proj: [], warns: [], beams: [],
       // phase 3 : plaques multiples (sceaux), murs de grès (parité), obscurité, lucioles, pièges cachés, checkpoints
       platesN: 0, platesOn: 0, par: 0, parT: 1, hasPar: false, dark: L.dark || 0, light: L.dark || 0, fly: 0, seenI: new Set(), hidT: [], cp: null, cpOn: new Set(), respawns: 0, shrooms: [],
       // phase 4 : blocs gelés, lave montante
@@ -301,12 +308,15 @@
     g.cam = clamp(g.milo.y + 0.5 - viewRows() * 0.62, 0, Math.max(0, H - viewRows())); g.camT = g.cam;
     const u = data().upg || {};
     if (u.magStart) g.bon.magnet = 4;
-    if ((u.shields || 0) > 0 && u.autoShield !== false && !(g.rule && g.rule.t === 'nohit')) { u.shields--; g.bon.shield = true; g.freeShield = true; }
+    // modes : survie = cœurs portés d'un niveau à l'autre ; exploration = ni lave ni oxygène (Milo est invincible)
+    if (RUN && RUN.mode === 'sv') { g.maxHearts = 3; g.hearts = RUN.hearts; }
+    if (RUN && RUN.mode === 'exp') { g.lava = null; g.o2Max = 0; g.o2 = 0; }
+    if ((u.shields || 0) > 0 && u.autoShield !== false && !(g.rule && g.rule.t === 'nohit') && !(RUN && RUN.mode === 'exp')) { u.shields--; g.bon.shield = true; g.freeShield = true; }
     return g;
   }
   const viewRows = () => (UI.vh || 700) / (UI.cs || 32);
   // 3 cœurs à partir du monde 3 (et pour les boss) ; un défi « sans coup » reste à un seul cœur
-  const heartsFor = (wi, L) => (L.boss || (wi >= 2 && !(L.rule && L.rule.t === 'nohit')) ? 3 : 1);
+  const heartsFor = (wi, L, rule) => { rule = rule === undefined ? L.rule : rule; return L.boss || (wi >= 2 && !(rule && rule.t === 'nohit')) ? 3 : 1; };
   const cell = (x, y) => (G.grid[y] && G.grid[y][x] !== undefined ? G.grid[y][x] : '#');
   function doorOpen(x, y) { const d = G.doors.find((q) => q.x === x && q.y === y); return !d || d.open > 0.5; }
   function passable(x, y) {
@@ -603,6 +613,7 @@
   }
   function hurt(why) {
     const m = G.milo;
+    if (RUN && RUN.mode === 'exp') { m.invT = 1.2; G.shake = Math.max(G.shake, 0.3); sfx('bump', 1); vibrate(10); floatText('Exploration : pas de dégâts', m.px, m.py - 0.7, '#c9a8ff'); return; }
     if (G.rule && G.rule.t === 'nohit') { die(why); return; }
     if (G.bon.shield) {
       G.bon.shield = false; m.invT = 1.1; G.hits++; sfx('shieldHit'); vibrate(25);
@@ -622,7 +633,7 @@
     fxBurst(m.px + 0.5, m.py + 0.5, ['#ffffff', skinById(data().skin).trail.b, '#ff5e9a'], 26, 6);
     floatText(why, m.px, m.py - 0.9, '#ff7aa8', true);
     const s = data().stats; s.deaths = (s.deaths || 0) + 1;
-    const canCp = !!G.cp && !G.boss && !(G.rule && (G.rule.t === 'nohit' || G.rule.t === 'timer'));
+    const canCp = !!G.cp && !G.boss && !RUN && !(G.rule && (G.rule.t === 'nohit' || G.rule.t === 'timer'));
     setTimeout(() => { if (G && G.state === 'dead') { if (canCp) cpOffer(); else endLevel(false); } }, canCp ? 1100 : 1500);
   }
   // checkpoint : Milo repart du dernier drapeau avec tous ses cœurs ; pièces, interrupteurs et dalles restent dans leur état
@@ -1602,17 +1613,17 @@
      HUD
      ===================================================================== */
   function gameHTML() {
-    return `<div class="mz-game"><canvas class="mz-cv" aria-label="Labyrinthe de Milo Maze"></canvas>
+    return `<div class="mz-game${RUN ? ' mz-run' : ''}"><canvas class="mz-cv" aria-label="Labyrinthe de Milo Maze"></canvas>
       <div class="mz-hud">
         <div class="mz-row"><button class="gclose" data-mz="pause" aria-label="Pause">${MG.icon('pause')}</button>
           <div class="mz-pill mz-coins"><i class="mz-ic coin"></i><b data-h="coins">0</b><span data-h="ctot">/0</span></div>
           <div class="mz-stars" data-h="stars">${objLabels(G).map((t) => `<i title="${t}"></i>`).join('')}</div>
           <div class="mz-pill mz-time">${ico('clock')}<b data-h="time">0:00</b></div></div>
-        ${G.boss ? `<div class="mz-bossbar"><b>${G.boss.name}</b><div class="mz-bhp"><i data-h="bhp"></i></div></div>` : `<div class="mz-prog"><i data-h="prog"></i><span>${lvLabel(G.wi, G.li)} · ${WORLDS[G.wi].short}</span></div>`}
+        ${G.boss ? `<div class="mz-bossbar"><b>${G.boss.name}</b><div class="mz-bhp"><i data-h="bhp"></i></div></div>` : `<div class="mz-prog"><i data-h="prog"></i><span>${RUN ? runLabel() : `${lvLabel(G.wi, G.li)} · ${WORLDS[G.wi].short}`}</span></div>`}
         <div class="mz-xtra" data-h="xtra"></div>
         <div class="mz-bons" data-h="bons"></div>
       </div>
-      <div class="mz-obj${G.L.tip ? ' tip' : ''}" data-h="obj"><small>Objectifs</small>${G.L.tip ? `<em>${G.L.tip}</em>` : ''}${objLabels(G).map((t) => `<span>${MG.icon('star')}${t}</span>`).join('')}</div>
+      ${RUN ? `<div class="mz-obj tip" data-h="obj"><small>${MODE[RUN.mode].name}</small><em>${runTip()}</em></div>` : `<div class="mz-obj${G.L.tip ? ' tip' : ''}" data-h="obj"><small>Objectifs</small>${G.L.tip ? `<em>${G.L.tip}</em>` : ''}${objLabels(G).map((t) => `<span>${MG.icon('star')}${t}</span>`).join('')}</div>`}
       <div class="mz-hint" data-h="hint"><div class="mz-hand"></div><b>Glisse ton doigt</b><span>Milo fonce jusqu’au prochain mur</span></div>
     </div>`;
   }
@@ -1648,7 +1659,7 @@
   function hudTick() {
     if (!root || !G) return; const H = UI.hudEls; applyVolumes();
     if (H.coins && H.coins._v !== G.got) { H.coins._v = G.got; H.coins.textContent = G.got; }
-    if (H.time) { const tm = G.rule && G.rule.t === 'timer', left = tm ? Math.max(0, G.rule.s - G.time) : 0, v = fmtT(tm ? left : G.time).replace(/\.\d$/, ''); if (H.time._v !== v) { H.time._v = v; H.time.textContent = v; H.time.parentNode.classList.toggle('late', tm ? left < 6 : G.time > G.L.par); } }
+    if (H.time) { const tm = G.rule && G.rule.t === 'timer', left = tm ? Math.max(0, G.rule.s - G.time) : 0, tt = RUN && RUN.mode === 'tt', base = tt ? RUN.t + RUN.pen : 0, v = fmtT(tm ? left : base + G.time).replace(/\.\d$/, ''); if (H.time._v !== v) { H.time._v = v; H.time.textContent = v; H.time.parentNode.classList.toggle('late', tm ? left < 6 : tt ? base + G.time > ttPar(RUN.o.wi) : G.time > G.L.par); } }
     if (H.prog && G.exit) { const k = clamp((G.startY - G.milo.py) / Math.max(1, G.startY - G.exit[1]), 0, 1); H.prog.style.width = Math.round(k * 100) + '%'; }
     if (G.o2Max && H.xtra) { const el = H.xtra.querySelector('[data-o2]'); if (el) { const k = clamp(G.o2 / G.o2Max, 0, 1), w = Math.round(k * 100) + '%'; if (el._v !== w) { el._v = w; el.style.width = w; el.parentNode.parentNode.classList.toggle('low', k < 0.3); } } }
     if (G.lava && H.xtra) { const el = H.xtra.querySelector('[data-lv]'); if (el) { const v = Math.max(0, Math.floor(G.lavaY - G.milo.py - 1)); if (el._v !== v) { el._v = v; el.textContent = v + (v > 1 ? ' cases' : ' case'); el.parentNode.classList.toggle('hot', v < 5); } } }
@@ -1708,6 +1719,7 @@
   function scoreOf(g, st) { const n = st.reduce((a, b) => a + b, 0); return g.got * 10 + n * 150 + g.crystals * 50 + (g.boss ? g.hearts * 200 : 0) + Math.max(0, Math.round((g.L.par * 1.6 - g.time) * 12)) + (g.hits === 0 ? 100 : 0); }
   function endLevel(won) {
     if (!G) return;
+    if (RUN) { runEnd(won); return; }
     const d = data(), key = lvKey(G.wi, G.li), rec = (d.lv = d.lv || {})[key] || {};
     d.coins = (d.coins || 0) + G.got; const s = d.stats; s.coinsTotal = (s.coinsTotal || 0) + G.got;
     let st = [0, 0, 0], score = G.got * 10, newBest = false, unlocks = []; const gains = [];
@@ -1716,11 +1728,7 @@
       newBest = !rec.best || score > rec.best;
       d.lv[key] = { stars: Math.max(rec.stars || 0, n), best: Math.max(rec.best || 0, score), time: rec.time ? Math.min(rec.time, +G.time.toFixed(1)) : +G.time.toFixed(1), done: (rec.done || 0) + 1 };
       s.wins = (s.wins || 0) + 1;
-      const C = col(G.wi);
-      if (G.crTotal) { C.cr = C.cr || {}; C.cr[key] = Math.max(C.cr[key] || 0, G.crystals); }
-      if (G.chests) { C.ch = C.ch || {}; const was = C.ch[key] || 0; if (G.chests > was) { const b = (G.chests - was) * CHEST_COINS; d.coins += b; gains.push(['chest', `Coffre${G.chests - was > 1 ? 's' : ''} : +${b} pièces`]); C.ch[key] = G.chests; } }
-      if (G.key && !C.key) { C.key = 1; gains.push(['key', 'Niveau secret débloqué !']); }
-      if (G.relic && !C.relic) { C.relic = 1; gains.push(['relic', 'Relique ajoutée à ta collection']); }
+      const C = saveCol(d, key, gains);
       if (G.boss && !C.boss) { const fin = WORLDS[G.wi].id === 'finale', bc = fin ? FINAL_COINS : BOSS_COINS; C.boss = 1; d.coins += bc; gains.push(['trophy', `Trophée : ${G.boss.name} · +${bc} pièces`]); if (fin) gains.push(['relic', 'Aventure terminée : Milo a traversé les 12 mondes !']); }
       // skins débloqués en terminant un monde ou en réunissant des étoiles
       SKINS.forEach((sk) => { if ((d.owned || {})[sk.id]) return; if ((sk.world && worldDone(sk.world)) || (sk.stars && totalStars() >= sk.stars)) { (d.owned = d.owned || { classic: true })[sk.id] = true; unlocks.push(sk); } });
@@ -1728,6 +1736,174 @@
     if (won) rememberOpen(d);
     api.save(); Music.target = 0;
     showEnd(won, st, score, rec.best || 0, newBest, unlocks, gains);
+  }
+  // objets de collection d'un niveau gagné : cristaux, coffres, clé, relique
+  function saveCol(d, key, gains) {
+    const C = col(G.wi);
+    if (G.crTotal) { C.cr = C.cr || {}; C.cr[key] = Math.max(C.cr[key] || 0, G.crystals); }
+    if (G.chests) { C.ch = C.ch || {}; const was = C.ch[key] || 0; if (G.chests > was) { const b = (G.chests - was) * CHEST_COINS; d.coins += b; gains.push(['chest', `Coffre${G.chests - was > 1 ? 's' : ''} : +${b} pièces`]); C.ch[key] = G.chests; } }
+    if (G.key && !C.key) { C.key = 1; gains.push(['key', 'Niveau secret débloqué !']); }
+    if (G.relic && !C.relic) { C.relic = 1; gains.push(['relic', 'Relique ajoutée à ta collection']); }
+    return C;
+  }
+
+  /* =====================================================================
+     MODES DE JEU — ils n'écrivent JAMAIS dans les niveaux (étoiles, records, déblocages).
+     On garde : les pièces ramassées, les records et récompenses de mode et, en exploration, les objets de collection.
+     ===================================================================== */
+  let RUN = null; // { mode, o, list: [[wi, li]], i, t, pen, cleared, hearts, coins, ... }
+  const TT_IDX = [0, 3, 6, 9, 12], NF_IDX = [1, 4, 7, 10, 13], TT_MED = { 1: 20, 2: 40, 3: 80 }, NF_COINS = 100, DAY_COINS = 50, WEEK_COINS = 200, WEEK_STEP = 30, SV_COINS = 10;
+  const MODE = {
+    day: { name: 'Défi du jour', ico: 'cal', col: '#ffd84d' }, week: { name: 'Défi de la semaine', ico: 'calw', col: '#ff9de9' },
+    tt: { name: 'Contre-la-montre', ico: 'clock', col: '#5ef2ff' }, nf: { name: 'Sans faute', ico: 'target', col: '#9dffb0' },
+    sv: { name: 'Survie', ico: 'flame', col: '#ffa06a' }, exp: { name: 'Exploration', ico: 'compass', col: '#c9a8ff' }
+  };
+  const MEDAL = ['', 'Bronze', 'Argent', 'Or'], TWIST = { timer: 'Chrono serré', nohit: 'Sans prendre de coup' };
+  function modesData() { const d = data(), M = (d.modes = d.modes || {}); ['tt', 'nf', 'sv', 'day', 'week'].forEach((k) => (M[k] = M[k] || {})); return M; }
+  const pad2 = (n) => (n < 10 ? '0' : '') + n;
+  const dayKey = (t) => { t = t || new Date(); return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`; };
+  const prevDayKey = () => { const t = new Date(); t.setDate(t.getDate() - 1); return dayKey(t); };
+  // semaine ISO (lundi → dimanche)
+  function weekKey() { const t = new Date(); t.setHours(12, 0, 0, 0); t.setDate(t.getDate() + 3 - ((t.getDay() + 6) % 7)); const y = t.getFullYear(), j = new Date(y, 0, 4, 12); return `${y}-S${pad2(1 + Math.round(((t - j) / 864e5 - 3 + ((j.getDay() + 6) % 7)) / 7))}`; }
+  // tirage reproductible : le même défi pour toute la journée / la semaine
+  function seeded(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619); return () => { h = (h + 0x6d2b79f5) | 0; let t = h; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  const openWorlds = () => WORLDS.map((_, wi) => wi).filter((wi) => hasContent(wi) && worldOpen(wi));
+  const doneWorlds = () => WORLDS.map((_, wi) => wi).filter((wi) => worldDone(wi));
+  const lvPool = (wi) => CONTENT[wi].map((_, li) => li).filter((li) => !CONTENT[wi][li].boss && unlocked(wi, li));
+  // défis du jour / de la semaine : des niveaux déjà terminés (les gagner en mode ne les « termine » pas)
+  const donePool = (wi) => { const P = lvPool(wi).filter((li) => done(wi, li)); return P.length ? P : lvPool(wi); };
+  const playedWorlds = () => { const ow = openWorlds(), w = ow.filter((wi) => CONTENT[wi].some((L, li) => !L.boss && done(wi, li))); return w.length ? w : ow; };
+  const doneCount = () => Object.values(data().lv || {}).filter((r) => (r.stars || 0) > 0).length;
+  const modeOpen = (k) => (k === 'exp' ? true : k === 'day' ? doneCount() >= 3 : k === 'tt' || k === 'nf' ? doneWorlds().length > 0 : worldDone(0));
+  const ttPar = (wi) => TT_IDX.reduce((n, li) => n + ((CONTENT[wi][li] && CONTENT[wi][li].par) || 0), 0);
+  const curStreak = (D) => (D.lastDone === dayKey() || D.lastDone === prevDayKey() ? D.streak || 0 : 0);
+  function runRule(L) {
+    if (!RUN) return L.rule || null; const m = RUN.mode;
+    if (m === 'nf') return { t: 'nohit' };
+    if (m === 'day' || m === 'week') return RUN.twist === 'nohit' ? { t: 'nohit' } : { t: 'timer', s: Math.round(L.par * 1.2) };
+    return null;
+  }
+  function pickDay() {
+    const M = modesData(), today = dayKey();
+    if (M.day.date !== today || !M.day.pick || !levelAt(M.day.pick[0], M.day.pick[1])) {
+      const R = seeded('day' + today), ow = playedWorlds(), top = ow.slice(-2), wi = top[Math.floor(R() * top.length)], pool = donePool(wi);
+      M.day.date = today; M.day.pick = [wi, pool[Math.floor(R() * pool.length)]]; M.day.twist = R() < 0.5 ? 'timer' : 'nohit'; M.day.done = false; api.save();
+    }
+    return M.day;
+  }
+  function pickWeek() {
+    const M = modesData(), wk = weekKey();
+    if (M.week.id !== wk || !M.week.picks || M.week.picks.some((q) => !levelAt(q[0], q[1]))) {
+      const R = seeded('week' + wk), ow = playedWorlds(), picks = [], tw = ['timer', 'nohit', 'timer'];
+      for (let k = 0; k < 3; k++) { const wi = ow[Math.max(0, ow.length - 1 - (k % Math.min(3, ow.length)))], pool = donePool(wi).filter((li) => !picks.some((q) => q[0] === wi && q[1] === li)), hard = pool.filter((li) => li >= 5), P = hard.length ? hard : pool.length ? pool : donePool(wi); picks.push([wi, P[Math.floor(R() * P.length)], tw[k]]); }
+      M.week = { id: wk, picks, done: [0, 0, 0], claimed: false }; api.save();
+    }
+    return M.week;
+  }
+  // survie : niveaux déjà terminés, de plus en plus loin dans l'aventure
+  function svNext() {
+    const ow = openWorlds(), wi = ow[Math.min(ow.length - 1, Math.floor(RUN.cleared / 2))];
+    let pool = CONTENT[wi].map((_, li) => li).filter((li) => !CONTENT[wi][li].boss && done(wi, li) && !RUN.used.has(wi + ':' + li)); if (!pool.length) pool = lvPool(wi);
+    const li = pool[Math.floor(Math.random() * pool.length)]; RUN.used.add(wi + ':' + li); return [wi, li];
+  }
+  function startRun(mode, o) {
+    o = o || {}; RUN = { mode, o, i: 0, t: 0, pen: 0, deaths: 0, cleared: 0, hearts: 3, used: new Set(), coins: 0, list: [] };
+    if (mode === 'tt' || mode === 'nf') RUN.list = (mode === 'tt' ? TT_IDX : NF_IDX).filter((li) => CONTENT[o.wi][li] && !CONTENT[o.wi][li].boss).map((li) => [o.wi, li]);
+    else if (mode === 'sv') RUN.list = [svNext()];
+    else if (mode === 'day') { const D = pickDay(); RUN.list = [D.pick.slice()]; RUN.twist = D.twist; RUN.date = D.date; }
+    else if (mode === 'week') { const Wk = pickWeek(); let k = o.k != null ? o.k : Wk.done.findIndex((x) => !x); if (k < 0) k = 0; RUN.k = k; RUN.week = Wk.id; RUN.list = [Wk.picks[k].slice(0, 2)]; RUN.twist = Wk.picks[k][2]; }
+    else RUN.list = [[o.wi, o.li]];
+    const s = data().stats; s.modeRuns = (s.modeRuns || 0) + 1;
+    runLevel();
+  }
+  function runLevel() { const [wi, li] = RUN.list[RUN.i]; UI.lastLv = [wi, li]; if (UI.screen !== 'game' || !G || G.wi !== wi) worldTrans(wi, () => startLevel(wi, li)); else startLevel(wi, li); }
+  function runLabel() {
+    const m = RUN.mode, [wi, li] = RUN.list[RUN.i] || RUN.list[RUN.list.length - 1];
+    if (m === 'tt' || m === 'nf') return `${MODE[m].name} · ${RUN.i + 1}/${RUN.list.length}`;
+    if (m === 'sv') return `Survie · niveau ${RUN.cleared + 1}`;
+    if (m === 'week') return `Défi de la semaine · ${RUN.k + 1}/3`;
+    if (m === 'day') return `Défi du jour · ${WORLDS[wi].short}`;
+    return `Exploration · ${lvLabel(wi, li)}`;
+  }
+  function runTip() {
+    const m = RUN.mode;
+    if (m === 'tt') return 'Va le plus vite possible : chaque chute coûte 5 secondes.';
+    if (m === 'nf') return 'Un seul coup et la course est perdue.';
+    if (m === 'sv') return 'Tes cœurs te suivent de niveau en niveau. +1 cœur tous les 3 niveaux.';
+    if (m === 'day' || m === 'week') return RUN.twist === 'nohit' ? 'Un seul coup et c’est raté.' : `Sors avant la fin du chrono (${G && G.rule ? G.rule.s : '?'} s).`;
+    return 'Milo est invincible : prends ton temps et fouille les murs fissurés.';
+  }
+  function runEnd(won) {
+    const d = data(), s = d.stats, g = G, mode = RUN.mode; Music.target = 0;
+    if (mode === 'exp') { const gains = []; if (won) saveCol(d, lvKey(g.wi, g.li), gains); api.save();
+      return runModal({ won, title: won ? 'Exploration terminée' : 'Oups !', sub: `${lvLabel(g.wi, g.li)} · ${WORLDS[g.wi].short}`, rows: [['Temps', fmtT(g.time)], ['Cristaux', `${g.crystals}/${g.crTotal}`]], gains: gains.length ? gains : [['compass', 'Rien de nouveau ici : cherche les murs fissurés !']], acts: [['runagain', 'redo', 'Rejouer'], ['expback', 'map', 'Niveaux']] }); }
+    d.coins = (d.coins || 0) + g.got; s.coinsTotal = (s.coinsTotal || 0) + g.got; RUN.coins += g.got;
+    if (!won && mode === 'tt') { RUN.t += g.time; RUN.pen += 5; RUN.deaths++; api.save(); runLevel(); toast('Chute : +5 s de pénalité'); return; }
+    if (!won) { api.save(); return runFinish(false); }
+    RUN.t += g.time; RUN.cleared++; RUN.i++; s.modeWins = (s.modeWins || 0) + 1;
+    if (mode === 'sv') { const bonus = RUN.cleared % 3 === 0 && g.hearts < 3; RUN.hearts = Math.min(3, g.hearts + (RUN.cleared % 3 === 0 ? 1 : 0)); RUN.list.push(svNext()); api.save(); return runStep(bonus); }
+    if (RUN.i < RUN.list.length) { api.save(); return runStep(false); }
+    runFinish(true);
+  }
+  function runStep(heart) {
+    const m = RUN.mode, n = RUN.list.length;
+    const rows = m === 'sv' ? [['Niveaux', RUN.cleared], ['Cœurs', `${RUN.hearts}/3`], ['Record', modesData().sv.best || 0], ['Pièces', RUN.coins]]
+      : [['Étape', `${RUN.i}/${n}`], ['Temps total', fmtT(RUN.t + RUN.pen)], m === 'tt' ? ['Objectif or', fmtT(ttPar(RUN.o.wi))] : ['Pièces', RUN.coins], m === 'tt' ? ['Pénalités', RUN.pen ? `+${RUN.pen} s` : 'aucune'] : ['Coups pris', '0']];
+    runModal({ won: true, title: m === 'sv' ? `Niveau ${RUN.cleared} survécu !` : `Étape ${RUN.i}/${n} réussie !`, sub: MODE[m].name, rows, gains: heart ? [['heart', 'Un cœur de plus !']] : [], acts: [['runnext', 'next', m === 'sv' ? 'Niveau suivant' : 'Étape suivante'], ['runquit', 'map', 'Abandonner']] });
+  }
+  function runFinish(ok) {
+    const M = modesData(), d = data(), mode = RUN.mode, gains = [], rows = []; let title = ok ? 'Bravo !' : 'Raté…', sub = MODE[mode].name, rec = false, won = ok;
+    if (mode === 'tt') {
+      const wid = WORLDS[RUN.o.wi].id, tot = +(RUN.t + RUN.pen).toFixed(1), par = ttPar(RUN.o.wi), med = tot <= par ? 3 : tot <= par * 1.35 ? 2 : 1, R = (M.tt[wid] = M.tt[wid] || {});
+      rec = !R.best || tot < R.best; if (rec) R.best = tot; R.runs = (R.runs || 0) + 1; let pay = 0; for (let k = (R.med || 0) + 1; k <= med; k++) pay += TT_MED[k];
+      if (med > (R.med || 0)) R.med = med; if (pay) { d.coins += pay; gains.push(['medal', `Médaille ${MEDAL[med]} : +${pay} pièces`]); }
+      title = `Médaille ${MEDAL[med]} !`; sub = `${MODE.tt.name} · ${WORLDS[RUN.o.wi].short}`; rows.push(['Temps', fmtT(tot)], ['Objectif or', fmtT(par)], ['Record', fmtT(R.best)], ['Pénalités', RUN.pen ? `+${RUN.pen} s` : 'aucune']);
+    } else if (mode === 'nf') {
+      const wid = WORLDS[RUN.o.wi].id, R = (M.nf[wid] = M.nf[wid] || {}); sub = `${MODE.nf.name} · ${WORLDS[RUN.o.wi].short}`; rows.push(['Étapes', `${RUN.cleared}/${RUN.list.length}`], ['Pièces', RUN.coins]);
+      R.best = Math.max(R.best || 0, RUN.cleared);
+      if (ok) { if (!R.done) { d.coins += NF_COINS; gains.push(['target', `Course parfaite : +${NF_COINS} pièces`]); } R.done = 1; R.n = (R.n || 0) + 1; title = 'Sans faute !'; } else title = 'Touché !';
+    } else if (mode === 'sv') {
+      const R = M.sv, n = RUN.cleared; rec = n > (R.best || 0); if (rec) R.best = n; R.runs = (R.runs || 0) + 1; won = n > 0;
+      const pay = n * SV_COINS; if (pay) { d.coins += pay; gains.push(['flame', `${n} niveau${n > 1 ? 'x' : ''} survécu${n > 1 ? 's' : ''} : +${pay} pièces`]); }
+      title = n ? `${n} niveau${n > 1 ? 'x' : ''} survécu${n > 1 ? 's' : ''} !` : 'Perdu…'; rows.push(['Niveaux', n], ['Record', R.best || 0], ['Temps', fmtT(RUN.t)], ['Pièces', RUN.coins]);
+    } else if (mode === 'day') {
+      const D = M.day; if (ok && D.date === RUN.date && !D.done) { D.done = true; D.streak = D.lastDone === prevDayKey() ? (D.streak || 0) + 1 : 1; D.lastDone = D.date; const pay = DAY_COINS + Math.min(D.streak - 1, 5) * 10; d.coins += pay; gains.push(['cal', `Défi du jour : +${pay} pièces`]); }
+      const st = curStreak(D); rows.push(['Défi', TWIST[RUN.twist]], ['Série', `${st} jour${st > 1 ? 's' : ''}`]); title = ok ? 'Défi du jour réussi !' : 'Raté…';
+    } else if (mode === 'week') {
+      const Wk = M.week; if (ok && Wk.id === RUN.week && !Wk.done[RUN.k]) { Wk.done[RUN.k] = 1; d.coins += WEEK_STEP; gains.push(['calw', `Étape ${RUN.k + 1}/3 : +${WEEK_STEP} pièces`]);
+        if (Wk.done.every(Boolean) && !Wk.claimed) { Wk.claimed = true; d.coins += WEEK_COINS; gains.push(['trophy', `Défi de la semaine terminé : +${WEEK_COINS} pièces`]); } }
+      rows.push(['Progression', `${Wk.done.filter(Boolean).length}/3`], ['Défi', TWIST[RUN.twist]]); title = ok ? 'Étape réussie !' : 'Raté…';
+    }
+    const more = ok && mode === 'week' && M.week.done.some((x) => !x);
+    api.save();
+    runModal({ won, title, sub, rows, gains, rec, acts: [[more ? 'runweeknext' : 'runagain', more ? 'next' : 'redo', more ? 'Étape suivante' : ok ? 'Rejouer' : 'Réessayer'], ['modes', 'modes', 'Modes']] });
+  }
+  function runModal(o) {
+    const d = data();
+    modal(`<div class="gpanel mz-panel mz-runp ${o.won ? 'win' : 'lose'}"><div class="mz-pmilo">${spriteBox(d.skin || 'classic', o.won ? 'win' : 'fail')}</div>
+      <h3>${o.title}</h3><p>${o.sub}${o.rec ? ' · <b class="mz-rec">Nouveau record !</b>' : ''}</p>
+      <div class="mz-sum">${o.rows.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('')}</div>
+      ${(o.gains || []).map(([k, t]) => `<div class="mz-gain g-${k}">${ico(k)}<span>${t}</span></div>`).join('')}
+      <p class="mz-earn"><i class="mz-ic coin"></i>Total : ${MG.fmt(d.coins || 0)} pièces</p>
+      <div class="acts">${o.acts.map(([a, ic, t], i) => `<button class="gbtn${i ? ' light' : ''}" data-mz="${a}">${ico(ic)}${t}</button>`).join('')}</div></div>`);
+  }
+  function runAgain() { const r = RUN; if (!r) return; if (r.mode === 'week') startRun('week', { k: r.k }); else startRun(r.mode, r.o); }
+  const expBan = () => (UI.explore ? `<div class="mz-expban">${ico('compass')}<span><b>Mode exploration</b><small>Choisis un niveau : Milo est invincible, pas de chrono.</small></span><button data-mz="expoff">Quitter</button></div>` : '');
+  // écran des modes
+  function modesHTML() {
+    const M = modesData(), lockTxt = { day: 'Termine 3 niveaux pour le débloquer.', week: 'Termine le monde 1 pour le débloquer.', sv: 'Termine le monde 1 pour la débloquer.', tt: 'Termine un monde (boss compris) pour débloquer sa course.', nf: 'Termine un monde (boss compris) pour débloquer sa course.' };
+    const card = (k, desc, body) => { const op = modeOpen(k); return `<section class="mz-mode${op ? '' : ' locked'}" style="--c:${MODE[k].col}"><div class="mz-mhead"><i class="mz-mic">${ico(MODE[k].ico)}</i><div><b>${MODE[k].name}</b><span>${desc}</span></div></div>${op ? body() : `<p class="mz-mlock">${MG.icon('lock')}${lockTxt[k]}</p>`}</section>`; };
+    const row = (attrs, b, sm, em, cls) => `<button class="mz-mbtn${cls ? ' ' + cls : ''}" data-mz="mode" ${attrs}><span><b>${b}</b><small>${sm}</small></span><em>${em}</em></button>`;
+    const day = () => { const D = pickDay(), [wi, li] = D.pick, st = curStreak(D), bonus = Math.min(D.lastDone === prevDayKey() ? (D.streak || 0) : 0, 5) * 10;
+      return row('data-m="day"', `${WORLDS[wi].short} · Niveau ${li + 1}`, `${TWIST[D.twist]} · ${D.done ? 'réussi aujourd’hui' : `+${DAY_COINS + bonus} pièces`}`, D.done ? 'Rejouer' : 'Jouer', D.done ? 'ok' : '') + `<p class="mz-mnote">${ico('flame')}Série : ${st} jour${st > 1 ? 's' : ''} d’affilée${st ? '' : ' — reviens chaque jour pour la faire grimper'}</p>`; };
+    const week = () => { const Wk = pickWeek(); return Wk.picks.map(([wi, li, tw], k) => row(`data-m="week" data-k="${k}"`, `Étape ${k + 1} · ${WORLDS[wi].short} · Niveau ${li + 1}`, TWIST[tw], Wk.done[k] ? 'Réussi' : 'Jouer', Wk.done[k] ? 'ok' : '')).join('') + `<p class="mz-mnote">${ico('trophy')}${Wk.claimed ? 'Bonus de la semaine récupéré. Nouveau défi lundi.' : `Les 3 étapes : +${WEEK_COINS} pièces en plus`}</p>`; };
+    const sv = () => row('data-m="sv"', `Record : ${M.sv.best || 0} niveau${(M.sv.best || 0) > 1 ? 'x' : ''}`, `${SV_COINS} pièces par niveau survécu`, 'Jouer');
+    const tt = () => doneWorlds().map((wi) => { const R = M.tt[WORLDS[wi].id] || {}; return row(`data-m="tt" data-w="${wi}"`, WORLDS[wi].short, `${R.best ? `Record ${fmtT(R.best)}` : 'Pas encore de temps'} · or en ${fmtT(ttPar(wi))}`, R.med ? MEDAL[R.med] : 'Jouer', R.med ? 'med m' + R.med : ''); }).join('');
+    const nf = () => doneWorlds().map((wi) => { const R = M.nf[WORLDS[wi].id] || {}; return row(`data-m="nf" data-w="${wi}"`, WORLDS[wi].short, R.done ? 'Course parfaite réussie' : `${R.best ? `Meilleure série : ${R.best}/5 · ` : ''}+${NF_COINS} pièces la première fois`, R.done ? 'Réussi' : 'Jouer', R.done ? 'ok' : ''); }).join('');
+    const exp = () => row('data-m="exp"', 'Choisir un niveau', 'Tu gardes cristaux, coffres, clés et reliques. Ni étoiles ni pièces.', 'Explorer');
+    return `<div class="mz-mlist">${card('day', 'Un niveau tiré au sort chaque jour, avec une contrainte.', day)}${card('week', '3 niveaux difficiles, une nouvelle série chaque lundi.', week)}
+      ${card('tt', '5 niveaux d’un monde à enchaîner le plus vite possible.', tt)}${card('nf', '5 niveaux d’un monde sans prendre un seul coup.', nf)}
+      ${card('sv', 'Des niveaux à la suite, de plus en plus durs, avec 3 cœurs pour toute la partie.', sv)}${card('exp', 'Milo est invincible et il n’y a pas de chrono : fouille chaque recoin.', exp)}</div>`;
   }
   // ---- progression par mondes (les mondes sans niveaux sont « bientôt » et ne bloquent pas la suite)
   const done = (wi, li) => ((((data().lv || {})[lvKey(wi, li)] || {}).stars) || 0) > 0;
@@ -1812,18 +1988,22 @@
     if (G && UI.screen === 'game') G.paused = true;
     UI.screen = name; root.querySelectorAll('.mz-scr').forEach((e) => e.remove()); root.querySelectorAll('.mz-game').forEach((e) => e.remove()); G = null;
     const d = data(), el = document.createElement('div'); el.className = 'mz-scr gscroll mzs-' + name;
-    if (name === 'home') {
+    if (name === 'home' || name === 'modes') { UI.explore = false; RUN = null; }
+    if (name === 'modes') {
+      el.innerHTML = `${topbar('home')}<div class="mz-in"><h2 class="mz-h">Modes de jeu</h2>${modesHTML()}</div>`;
+    } else if (name === 'home') {
       const sk = d.skin || 'classic';
       el.innerHTML = `${topbar(null)}<div class="mz-in mz-homein">
         <img class="mz-logo" src="${MG.asset('logo_maze.webp')}" alt="Milo Maze" draggable="false">
         <div class="mz-stage">${spriteBox(sk, 'idle', 'mz-hero')}<i class="mz-plat"></i></div>
         <div class="mz-best"><span>${MG.icon('crown')}Meilleur score</span><b>${MG.fmt(totalScore())}</b><span class="mz-sub">${totalStars()} / ${maxStars()} ${MG.icon('star')}</span></div>
         <button class="gbtn mz-play" data-mz="map">${MG.icon('play')}Jouer</button>
+        <button class="gbtn light mz-modesbtn" data-mz="modes">${ico('modes')}Modes de jeu${modeOpen('day') && !pickDay().done ? '<i class="mz-dot" aria-label="Défi du jour disponible"></i>' : ''}</button>
         <div class="mz-menu"><button data-mz="skins"><span>${ico('skins')}</span>Personnages</button><button data-mz="shop"><span>${ico('shop')}</span>Boutique</button><button data-mz="settings"><span>${MG.icon('gear')}</span>Paramètres</button></div>
       </div>`;
     } else if (name === 'map') {
       migrate(d); const nr = nextReward(), gp = globalPct();
-      el.innerHTML = `${topbar('home')}<div class="mz-in"><h2 class="mz-h">Carte des mondes<span>${totalStars()} / ${maxStars()} ${MG.icon('star')}</span></h2>
+      el.innerHTML = `${topbar('home')}<div class="mz-in">${expBan()}<h2 class="mz-h">Carte des mondes<span>${totalStars()} / ${maxStars()} ${MG.icon('star')}</span></h2>
         <div class="mz-glob"><div class="mz-bar"><i style="width:${gp}%"></i></div><span>${gp} % de l’aventure</span></div>
         ${nr ? `<div class="mz-next">${spriteBox(nr.sk.id, 'idle')}<div><small>Prochaine récompense</small><b>${nr.sk.name}</b><span>${nr.txt}</span></div><em>${nr.k}</em></div>` : ''}
         <div class="mz-wlist">${WORLDS.map((W, wi) => worldCard(W, wi)).join('')}</div></div>`;
@@ -1840,7 +2020,7 @@
         cs.key != null ? `<span class="${cs.key ? 'ok' : ''}">${ico('key')}<b>${cs.key ? '1/1' : '0/1'}</b><small>clé</small></span>` : '', cs.relic != null ? `<span class="${cs.relic ? 'ok' : ''}">${ico('relic')}<b>${cs.relic ? '1/1' : '0/1'}</b><small>relique</small></span>` : '',
         cs.boss != null ? `<span class="${cs.boss ? 'ok' : ''}">${ico('trophy')}<b>${cs.boss ? '1/1' : '0/1'}</b><small>trophée</small></span>` : ''].join('');
       el.style.cssText = `--e:${W.pal.edge};--g:${W.pal.glow};--w:${W.pal.wall}`;
-      el.innerHTML = `${topbar('map')}<div class="mz-in">
+      el.innerHTML = `${topbar('map')}<div class="mz-in">${expBan()}
         <div class="mz-whead" style="background-image:url(${worldArt(wi)})"><i class="mz-wemb"><svg viewBox="0 0 24 24">${W.icon}</svg></i><small>Monde ${wi + 1} · <span class="mz-tier t-${W.tier}">${TIERS[W.tier]}</span></small><b>${W.name}</b><span>${W.blurb}</span></div>
         <div class="mz-wstats"><div><b>${worldPct(wi)} %</b><span>terminé</span></div><div><b>${worldStars(wi)}/${worldMax(wi)}</b><span>étoiles</span></div><div><b>${worldDoneN(wi)}/${lv.length}</b><span>niveaux</span></div></div>
         ${colRow ? `<div class="mz-col">${colRow}</div>` : ''}
@@ -1936,9 +2116,9 @@
   function pause() {
     if (!G || G.paused || UI.screen !== 'game' || G.state === 'dead' || G.state === 'win') return;
     G.paused = true; UI.ptr = null; Music.stop(); sfx('tap');
-    modal(`<div class="gpanel mz-panel"><div class="mz-pmilo">${spriteBox(data().skin || 'classic', 'idle')}</div><h3>Pause</h3><p>${lvLabel(G.wi, G.li)} · ${WORLDS[G.wi].short}</p>
-      <div class="acts"><button class="gbtn" data-mz="resume">${MG.icon('play')}Reprendre</button><button class="gbtn light" data-mz="restart">${MG.icon('redo')}Recommencer</button>
-      <button class="gbtn light" data-mz="psettings">${MG.icon('gear')}Paramètres</button><button class="gbtn light" data-mz="quit">${ico('map')}Quitter le niveau</button></div></div>`);
+    modal(`<div class="gpanel mz-panel"><div class="mz-pmilo">${spriteBox(data().skin || 'classic', 'idle')}</div><h3>Pause</h3><p>${RUN ? runLabel() : `${lvLabel(G.wi, G.li)} · ${WORLDS[G.wi].short}`}</p>
+      <div class="acts"><button class="gbtn" data-mz="resume">${MG.icon('play')}Reprendre</button><button class="gbtn light" data-mz="restart">${MG.icon('redo')}${RUN && RUN.mode !== 'exp' ? 'Recommencer la course' : 'Recommencer'}</button>
+      <button class="gbtn light" data-mz="psettings">${MG.icon('gear')}Paramètres</button><button class="gbtn light" data-mz="quit">${ico('map')}${RUN && RUN.mode !== 'exp' ? 'Abandonner' : 'Quitter le niveau'}</button></div></div>`);
   }
   function resume() { if (!G) return; closeModal(); G.paused = false; last = 0; Music.start(G.wi); }
   function showEnd(won, st, score, prevBest, newBest, unlocks, gains) {
@@ -1992,11 +2172,21 @@
     else if (a === 'resume') resume();
     else if (a === 'cpgo') respawn();
     else if (a === 'cpquit') { closeModal(); if (G && G.state === 'dead') endLevel(false); }
-    else if (a === 'restart') { const g = G; if (g) startLevel(g.wi, g.li); else if (UI.lastLv) startLevel(...UI.lastLv); }
-    else if (a === 'quit') { Music.stop(); const wi = G ? G.wi : UI.curWorld || 0; screen('world', { wi }); }
+    else if (a === 'restart') { if (RUN && RUN.mode !== 'exp') { runAgain(); return; } const g = G; if (g) startLevel(g.wi, g.li); else if (UI.lastLv) startLevel(...UI.lastLv); }
+    else if (a === 'quit') { Music.stop(); const wi = G ? G.wi : UI.curWorld || 0; if (RUN && RUN.mode !== 'exp') { screen('modes'); return; } RUN = null; screen('world', { wi }); }
+    else if (a === 'modes') screen('modes');
+    else if (a === 'mode') { const m = b.dataset.m; if (!modeOpen(m)) { sfx('no'); return; } if (m === 'exp') { UI.explore = true; screen('map'); UI.explore = true; return; } startRun(m, { wi: b.dataset.w != null ? +b.dataset.w : undefined, k: b.dataset.k != null ? +b.dataset.k : undefined }); }
+    else if (a === 'runnext') { closeModal(); if (RUN) runLevel(); }
+    else if (a === 'runquit') screen('modes');
+    else if (a === 'runagain') runAgain();
+    else if (a === 'runweeknext') startRun('week', {});
+    else if (a === 'expback') { const wi = G ? G.wi : UI.curWorld || 0; RUN = null; screen('world', { wi }); }
+    else if (a === 'expoff') { UI.explore = false; screen(UI.screen === 'world' ? 'world' : 'map', { wi: UI.curWorld }); }
     else if (a === 'psettings') { const m = modal(`<div class="gpanel mz-panel mz-psets"><h3>Paramètres</h3>${settingsHTML(settings())}<div class="acts"><button class="gbtn" data-mz="pauseback">${ico('back')}Retour</button></div></div>`); }
     else if (a === 'pauseback') { closeModal(); G.paused = false; pause(); }
-    else if (a === 'play') { const wi = +b.dataset.w, li = +b.dataset.l; UI.lastLv = [wi, li]; if (!unlocked(wi, li)) return; if (G && G.wi !== wi) worldTrans(wi, () => startLevel(wi, li)); else startLevel(wi, li); }
+    else if (a === 'play') { const wi = +b.dataset.w, li = /^\d+$/.test(b.dataset.l) ? +b.dataset.l : b.dataset.l; UI.lastLv = [wi, li]; if (!unlocked(wi, li)) return;
+      if (UI.explore) { if (levelAt(wi, li).boss) { sfx('no'); toast('Les boss ne se jouent pas en exploration'); return; } startRun('exp', { wi, li }); return; }
+      RUN = null; if (G && G.wi !== wi) worldTrans(wi, () => startLevel(wi, li)); else startLevel(wi, li); }
     else if (a === 'openworld') { const wi = +b.dataset.w; worldTrans(wi, () => screen('world', { wi })); }
     else if (a === 'world') { screen('world', { wi: +b.dataset.w }); }
     else if (a === 'chlocked') { sfx('no'); toast(`Termine le niveau ${CHAL_AFTER[+b.dataset.k] + 1} pour ouvrir ce défi`); }
@@ -2055,7 +2245,7 @@
         cta: nd ? 'Continuer l’aventure' : 'Jouer' };
     },
     homeLine(d) { migrate(d); let s = 0; Object.values(d.lv || {}).forEach((r) => (s += r.stars || 0)); return `Milo Maze ${s} étoiles`; },
-    _debug: { G: () => G, UI, launch, start: (w, l) => startLevel(w, l), screen, LV, WORLDS, CONTENT, CHAL, SECRET, levelAt, migrate, worldOpen, unlocked, nextReward, worldPct, colStats, setInv: (v) => { if (G) G.milo.invT = v ? 1e9 : 0; }, hitAt: (x, y) => hitAt(x, y, G.time), die: (w) => die(w || 'Test'), respawn }
+    _debug: { G: () => G, UI, launch, start: (w, l) => startLevel(w, l), screen, LV, WORLDS, CONTENT, CHAL, SECRET, levelAt, migrate, worldOpen, unlocked, nextReward, worldPct, colStats, setInv: (v) => { if (G) G.milo.invT = v ? 1e9 : 0; }, hitAt: (x, y) => hitAt(x, y, G.time), die: (w) => die(w || 'Test'), respawn, startRun, RUN: () => RUN, modesData, pickDay, pickWeek, ttPar }
   });
 
   /* =====================================================================
@@ -2114,14 +2304,14 @@
   .mz-wallet{display:flex;align-items:center;gap:6px;height:38px;padding:0 13px 0 8px;border-radius:19px;background:rgba(20,10,50,.6);box-shadow:inset 0 0 0 1px rgba(255,215,77,.35);font-weight:900;font-size:16px;font-variant-numeric:tabular-nums}
   .mz-in{width:min(100%,440px);margin:0 auto;padding:0 16px max(26px,env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:stretch}
   .mz-homein{align-items:center}
-  .mz-logo{width:min(70%,270px);height:auto;margin-top:-4px;filter:drop-shadow(0 12px 26px rgba(120,60,255,.45));animation:gpop .6s cubic-bezier(.34,1.6,.5,1) both}
+  .mz-logo{width:min(70%,270px,29vh);height:auto;margin-top:-4px;filter:drop-shadow(0 12px 26px rgba(120,60,255,.45));animation:gpop .6s cubic-bezier(.34,1.6,.5,1) both}
   .mz-stage{position:relative;width:120px;height:110px;margin-top:-4px}
   .mz-spr{display:inline-block;background-size:1100% 100%;background-repeat:no-repeat;width:72px;height:72px;flex:none}
   .mz-hero{position:absolute;left:0;top:0;width:120px;height:120px;animation:mzFloat 2.6s ease-in-out infinite;filter:drop-shadow(0 10px 18px rgba(150,90,255,.5))}
   @keyframes mzFloat{50%{transform:translateY(-8px) rotate(-2deg)}}
   .mz-plat{position:absolute;left:18px;right:18px;bottom:-4px;height:14px;border-radius:50%;background:radial-gradient(closest-side,rgba(169,112,255,.6),transparent);animation:mzPlat 2.6s ease-in-out infinite}
   @keyframes mzPlat{50%{transform:scaleX(.8);opacity:.6}}
-  .mz-best{display:flex;flex-direction:column;align-items:center;margin:14px 0 12px}
+  .mz-best{display:flex;flex-direction:column;align-items:center;margin:10px 0 10px}
   .mz-best span{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#cbbcff}
   .mz-best span .gi{width:15px;height:15px;fill:#ffcf3a;stroke:#e19c00}
   .mz-best b{font-size:34px;font-weight:900;letter-spacing:-1px;font-variant-numeric:tabular-nums;text-shadow:0 0 18px rgba(169,112,255,.7)}
@@ -2188,6 +2378,22 @@
   .mz-sec .gi{width:30px;height:30px;stroke:#7af6ff;flex:none}.mz-sec span{display:flex;flex-direction:column}.mz-sec b{font-size:16px;font-weight:900}.mz-sec small{font-size:12px;color:#cbbcff}
   .mz-sec.locked{background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.15)}.mz-sec.locked .gi{stroke:#8a7cc0}
   .mz-gain{display:flex;align-items:center;gap:10px;margin:6px 0 0;padding:8px 12px;border-radius:14px;background:linear-gradient(120deg,#fff4d6,#f1eaff);text-align:left;font-size:13.5px;font-weight:800;color:#3a2a8a}.mz-gain .gi{width:20px;height:20px;stroke:#c27a00;flex:none}
+  /* modes de jeu */
+  .mz-modesbtn{width:100%;margin-top:9px!important;padding:12px!important;position:relative}.mz-dot{position:absolute;top:9px;right:14px;width:10px;height:10px;border-radius:50%;background:#ff4f6d;box-shadow:0 0 0 2px #fff,0 0 10px #ff4f6d}
+  .mz-mlist{display:flex;flex-direction:column;gap:12px;padding-bottom:16px}
+  .mz-mode{border-radius:22px;padding:12px;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}.mz-mode.locked{opacity:.62}
+  .mz-mhead{display:flex;align-items:center;gap:10px;margin-bottom:6px}.mz-mhead > div{display:flex;flex-direction:column;flex:1;min-width:0}.mz-mhead b{font-size:17px;font-weight:900}.mz-mhead span{font-size:12px;color:#cbbcff;font-weight:700;line-height:1.3}
+  .mz-mic{flex:none;width:40px;height:40px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1.5px var(--c)}.mz-mic .gi{width:22px;height:22px;stroke:var(--c)}
+  .mz-mbtn{width:100%;border:0;border-radius:16px;padding:10px 12px;margin-top:6px;display:flex;align-items:center;gap:10px;text-align:left;font:inherit;color:#fff;background:rgba(20,10,50,.5);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);transition:transform .12s}
+  .mz-mbtn:active{transform:scale(.98)}.mz-mbtn > span{flex:1;display:flex;flex-direction:column;min-width:0}.mz-mbtn b{font-size:14px;font-weight:900}.mz-mbtn small{font-size:11.5px;color:#cbbcff;font-weight:700;line-height:1.3}
+  .mz-mbtn em{flex:none;font-style:normal;font-size:12px;font-weight:900;padding:7px 12px;border-radius:12px;background:var(--c);color:#1a0b33}.mz-mbtn.ok em{background:rgba(255,255,255,.14);color:#fff}
+  .mz-mbtn.m1 em{background:#e0a063}.mz-mbtn.m2 em{background:#e4e8f0}.mz-mbtn.m3 em{background:#ffd84d}
+  .mz-mnote{display:flex;align-items:center;gap:6px;margin:8px 2px 0;font-size:12px;font-weight:800;color:#ffd9b8}.mz-mnote .gi{width:15px;height:15px;stroke:var(--c);flex:none}
+  .mz-mlock{display:flex;align-items:center;gap:6px;margin:4px 2px 0;font-size:12.5px;font-weight:700;color:#b9a8ff}.mz-mlock .gi{width:14px;height:14px}
+  .mz-expban{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 12px;border-radius:18px;background:linear-gradient(120deg,rgba(201,168,255,.22),rgba(94,242,255,.12));box-shadow:inset 0 0 0 1.5px rgba(201,168,255,.5)}
+  .mz-expban .gi{width:26px;height:26px;stroke:#c9a8ff;flex:none}.mz-expban span{flex:1;display:flex;flex-direction:column}.mz-expban b{font-size:14px;font-weight:900}.mz-expban small{font-size:11.5px;color:#d8ccff}
+  .mz-expban button{border:0;border-radius:12px;padding:7px 11px;font:inherit;font-size:12px;font-weight:900;color:#fff;background:rgba(255,255,255,.14)}
+  .mz-run .mz-stars{visibility:hidden}.mz-rec{color:#c27a00}
   /* HUD : boss, cœurs, cristaux */
   .mz-bossbar{display:flex;flex-direction:column;gap:4px;margin:8px 2px 0}.mz-bossbar b{font-size:12px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#ffd0f0;text-shadow:0 0 10px rgba(255,80,160,.6)}
   .mz-bhp{height:10px;border-radius:6px;background:rgba(255,255,255,.14);overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}.mz-bhp i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff3d7f,#ffb340);box-shadow:0 0 12px #ff3d7f;transition:width .35s cubic-bezier(.34,1.56,.64,1)}
