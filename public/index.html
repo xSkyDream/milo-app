@@ -36,6 +36,11 @@
 }
 *{box-sizing:border-box}
 html,body{height:100%}
+/* iPhone : Safari zoome tout seul sur un champ dont le texte fait moins de 16 px, et la page reste zoomée ensuite.
+   16 px minimum sur les champs (appareils tactiles uniquement) + pas de zoom au double-tap ni de débordement horizontal. */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:manipulation}
+html,body{overflow-x:hidden;max-width:100%}
+@media (pointer:coarse){input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea{font-size:16px!important}}
 body{margin:0;background:var(--desk);color:var(--ink);font-family:var(--font);font-weight:600;font-size:15px;-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
