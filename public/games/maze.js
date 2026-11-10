@@ -67,7 +67,9 @@
     { id: 'magStart', name: 'Aimant de départ', desc: 'Chaque niveau commence avec 4 s d’aimant', max: 1, price: [500] },
     { id: 'shields', name: 'Boucliers de secours ×3', desc: 'Un bouclier offert au début de 3 niveaux', max: 99, price: [250], stack: 3 }
   ];
-  const V0 = 9, VMAX = 19, ACC_T = 0.12, R_MILO = 0.3, CHEST_COINS = 20, BOSS_COINS = 150;
+  const V0 = 9, VMAX = 19, ACC_T = 0.12, R_MILO = 0.3, CHEST_COINS = 20, BOSS_COINS = 150, FINAL_COINS = 400;
+  // murs du néant : d (magenta, rond) · f (cyan, triangle) · h (jaune, carré) — la couleur active bloque, elle change à chaque arrêt
+  const VOIDC = 'dfh', VCOL = { d: '#ff3df0', f: '#5ee7ff', h: '#ffd84d' };
   const TIMED = { x: { per: 2.6, on: 1.05, warn: 0.4 }, z: { per: 2.3, on: 0.9, warn: 0.35 }, k: { per: 3.1, on: 1.4, warn: 0.5 }, i: { per: 2.8, on: 1.1, warn: 0.45 }, j: { per: 3.6, on: 1.0, warn: 0.85 }, e: { per: 2.4, on: 0.5, warn: 0.6 } };
   const DOOR = { per: 3.4, open: 2.0 };
 
@@ -85,6 +87,7 @@
     swipe: '<path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"/><path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4" opacity=".35"/>', check: '<path d="M20 6 9 17l-5-5"/>', gem: '<path d="M6 3h12l3 6-9 12L3 9z"/><path d="M3 9h18"/>', key: '<circle cx="8" cy="12" r="4"/><path d="M12 12h9M18 12v3M15 12v2"/>', heart: '<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/>', relic: '<circle cx="12" cy="12" r="4"/><ellipse cx="12" cy="12" rx="9.5" ry="3.5"/>', chest: '<path d="M4 10h16v9H4zM4 10a8 5 0 0 1 16 0"/><path d="M11 13h2"/>', trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', next: '<path d="m9 18 6-6-6-6"/>'
   };
   IC.flag = '<path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/>';
+  IC.prism = '<path d="M12 4l8 15H4z"/><path d="M12 4l1.5 15"/><path d="M3 7l2 1.5M21 7l-2 1.5"/>';
   IC.lava = '<path d="M12 3c2 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-5 3-7 1 2 2 3 3 3-1-3 0-5 0-7z"/>';
   const ico = (n, c) => IC[n] ? `<svg class="gi ${c || ''}" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>` : MG.icon(n, c);
   // clé PERMANENTE d'un niveau : "idDuMonde:index" (ex. "ruines:3")
@@ -170,6 +173,8 @@
     reveal: () => tone(1400, { f2: 700, d: 0.08, v: 0.03, type: 'square' }),
     ice: () => { noise({ d: 0.3, v: 0.05, f: 3000, f2: 900, type: 'bandpass', q: 1.5 }); tone(620, { f2: 300, d: 0.18, v: 0.035, type: 'triangle' }); },
     snow: () => noise({ d: 0.16, v: 0.04, f: 1800, f2: 500 }),
+    prism: (on) => { if (on) { tone(880, { d: 0.12, v: 0.04, type: 'sine' }); tone(1320, { t: 0.06, d: 0.2, v: 0.03, type: 'sine' }); } else tone(660, { f2: 330, d: 0.16, v: 0.035, type: 'triangle' }); },
+    cyc: () => { tone(220, { f2: 330, d: 0.06, v: 0.022, type: 'square' }); noise({ d: 0.06, v: 0.018, f: 3000, f2: 1200, type: 'bandpass' }); },
     gear: () => { tone(520, { d: 0.04, v: 0.03, type: 'square' }); tone(390, { t: 0.05, d: 0.05, v: 0.03, type: 'square' }); },
     boo: () => { tone(330, { f2: 160, d: 0.5, v: 0.05, type: 'sine' }); tone(250, { t: 0.08, f2: 120, d: 0.5, v: 0.04, type: 'triangle' }); },
     lava: () => { noise({ d: 0.5, v: 0.06, f: 500, f2: 120 }); tone(90, { f2: 60, d: 0.4, v: 0.05, type: 'sawtooth' }); },
@@ -261,7 +266,9 @@
       // phase 5 : gravité (-1 = aucune), commandes inversées (s), oxygène (s)
       grav: -1, invT: 0, o2Max: L.o2 || 0, o2: L.o2 || 0,
       // phase 6 : engrenages (rotation 0-3, change à chaque arrêt)
-      rot: 0, rotT: 1, hasRot: false
+      rot: 0, rotT: 1, hasRot: false,
+      // phase 7 : prismes de lumière (cases allumées ; état au dernier arrêt pour les checkpoints), murs du néant (couleur active 0-2)
+      lit: new Set(), litRest: new Set(), prisms: 0, cyc: 0, cycT: 1, hasCyc: false
     };
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const c = grid[y][x];
@@ -276,6 +283,8 @@
       else if (c === 'P') g.platesN++;
       else if (c === 'y' || c === 'Y') g.hasPar = true;
       else if (c >= '6' && c <= '9') g.hasRot = true;
+      else if (c === 'l') g.prisms++;
+      else if (c === 'd' || c === 'f' || c === 'h') g.hasCyc = true;
     }
     g.hidT = g.timed.filter((t) => t.c === 'i');
     if (L.boss) g.boss = { kind: L.boss.kind, name: L.boss.name, hp: L.boss.hp, max: L.boss.hp, phase: 0, next: 2.4, ti: 0, targets: L.boss.targets, hitT: 0, dead: false, deadT: 0, n: 0, calm: 0, eye: 0 };
@@ -305,9 +314,12 @@
     if (G.ice.length && iceAt(x, y)) return false;
     if (c === 'a') return G.tog === 1; if (c === 'b') return G.tog === 0; if (c === 'g') return G.gate; if (c === 'E') return G.exitOpen;
     if (c === 'y') return G.par === 1; if (c === 'Y') return G.par === 0; if (c === 'U') return false;
+    if (c === 'I') return lightOpen(); if (c === 'd' || c === 'f' || c === 'h') return VOIDC.indexOf(c) !== G.cyc;
     return true;
   }
-  const solidAt = (x, y) => { const c = cell(x, y); return c === '#' || (c === 'H' && !G.rev.has(y * G.W + x)) || (c === 'a' && G.tog === 0) || (c === 'b' && G.tog === 1) || (c === 'g' && !G.gate) || (c === 'y' && G.par === 0) || (c === 'Y' && G.par === 1) || (G.ice.length > 0 && !!iceAt(x, y)); };
+  // porte de lumière : ouverte quand TOUS les prismes sont allumés en même temps
+  const lightOpen = () => G.prisms > 0 && G.lit.size >= G.prisms;
+  const solidAt = (x, y) => { const c = cell(x, y); return c === '#' || (c === 'H' && !G.rev.has(y * G.W + x)) || (c === 'a' && G.tog === 0) || (c === 'b' && G.tog === 1) || (c === 'g' && !G.gate) || (c === 'y' && G.par === 0) || (c === 'Y' && G.par === 1) || (c === 'I' && !lightOpen()) || ((c === 'd' || c === 'f' || c === 'h') && VOIDC.indexOf(c) === G.cyc) || (G.ice.length > 0 && !!iceAt(x, y)); };
   const iceAt = (x, y) => G.ice.find((b) => b.x === x && b.y === y);
   // bloc gelé : il glisse sur le sol nu et les objets (sans les ramasser) jusqu'au prochain obstacle — mêmes règles que le générateur
   const ICEOK = ' .BMVRT*LKQC';
@@ -358,6 +370,8 @@
     if (G.grav >= 0 && G.state === 'play' && passable(m.x + DIRS[G.grav][0], m.y + DIRS[G.grav][1])) { m.moving = true; m.d = G.grav; m.mt = 0; m.sp = V0; G.trailBreak = true; if (G.grav === 1) m.face = 1; else if (G.grav === 3) m.face = -1; m.pose = 'accel'; m.poseT = 0.1; return; }
     if (G.hasRot && G.state === 'play') { G.rot = (G.rot + 1) & 3; G.rotT = 0; sfx('gear'); } // engrenages : un quart de tour à chaque arrêt
     if (G.hasPar && G.state === 'play') { G.par ^= 1; G.parT = 0; sfx('grind'); } // murs de grès : ils changent de place à chaque arrêt
+    if (G.hasCyc && G.state === 'play') { G.cyc = (G.cyc + 1) % 3; G.cycT = 0; sfx('cyc'); hud(); } // murs du néant : la couleur active change à chaque arrêt
+    if (G.prisms) G.litRest = new Set(G.lit); // état des prismes au dernier arrêt (c'est celui que le générateur vérifie pour les checkpoints)
     const k = clamp((m.sp - V0) / (VMAX - V0), 0.25, 1);
     m.sq = 0.55 * k + 0.2; m.sqDir = m.d % 2 === 0 ? 1 : 0; m.impD = m.d; m.impT = 0;
     G.shake = Math.max(G.shake, 0.18 * k); sfx('bump', k);
@@ -383,6 +397,10 @@
     else if (c === 'A') { if (G.o2Max && G.o2 < G.o2Max - 0.3) { G.o2 = G.o2Max; sfx('fly'); for (let i = 0; i < (UI.lowfx ? 3 : 9); i++) addPart({ x: x + 0.3 + Math.random() * 0.4, y: y + 0.7, vx: (Math.random() - 0.5) * 0.6, vy: -1.5 - Math.random() * 1.5, g: 0, life: 0.7, t: 0, s: 0.08 + Math.random() * 0.06, c: '#bff8ff' }); floatText('Air !', x, y - 0.5, '#bff8ff'); hud(); } }
     else if (c === 'X') { G.grid[y][x] = ' '; sfx('boo'); fxBurst(x + 0.5, y + 0.5, ['#8dffb8', '#c6a8ff', '#1a0820'], 22, 4); floatText('Fausse sortie !', x, y - 0.6, '#8dffb8', true); G.shake = Math.max(G.shake, 0.4); if (m.invT <= 0) hurt('Une fausse sortie !'); }
     else if (c === 'L') { G.grid[y][x] = ' '; G.fly = 10; sfx('fly'); fxBurst(x + 0.5, y + 0.5, ['#f4ff9a', '#d8ff8a', '#ffffff'], 18, 3); floatText('Lucioles !', x, y - 0.6, '#e6ff9a', true); hud(); }
+    else if (c === 'l') { const k = y * G.W + x, was = lightOpen(); if (G.lit.has(k)) G.lit.delete(k); else G.lit.add(k); const on = G.lit.has(k), op = lightOpen();
+      sfx('prism', on ? 1 : 0); fxBurst(x + 0.5, y + 0.5, on ? ['#ffffff', '#5ef2ff', '#e0d0ff'] : ['#6a4aa8', '#2a1458'], on ? 16 : 8, on ? 3.5 : 2); vibrate(on ? 10 : 6);
+      if (op) { floatText('La porte de lumière s’ouvre !', x, y - 0.6, '#e8fbff', true); G.shake = Math.max(G.shake, 0.25); }
+      else floatText(on ? `Prisme ${G.lit.size}/${G.prisms}` : was ? 'La porte se referme !' : 'Prisme éteint', x, y - 0.6, on ? '#bff8ff' : '#b48cff', was); hud(); }
     else if (c === 'H' && !G.rev.has(y * G.W + x)) { G.rev.add(y * G.W + x); buildChunks(); sfx('portal'); fxBurst(x + 0.5, y + 0.5, ['#ffffff', G.pal.edge], 18, 3); floatText('Passage secret !', x, y - 0.6, '#ffffff', true); }
     if (G.boss && !G.boss.dead) { const t = G.boss.targets[G.boss.ti]; if (t && t[0] === x && t[1] === y) bossHit(); }
     else if (c in BOOSTDIR && !quiet) {
@@ -421,7 +439,7 @@
     if (G.invT > 0 && G.state === 'play') { G.invT = Math.max(0, G.invT - dt); if (!G.invT) { hud(); floatText('Commandes normales', G.milo.px, G.milo.py - 0.7, '#ffffff'); } }
     if (G.o2Max && G.state === 'play') G.o2 = Math.max(0, G.o2 - dt);
     if (G.dark) { const tl = G.dark + (G.fly > 0 ? 2.6 : 0); G.light += (tl - G.light) * Math.min(1, dt * 2.5); }
-    G.parT += dt; G.rotT += dt;
+    G.parT += dt; G.rotT += dt; G.cycT += dt;
     G.ice.forEach((b) => { const k = dt * 18; b.fx += Math.sign(b.x - b.fx) * Math.min(Math.abs(b.x - b.fx), k); b.fy += Math.sign(b.y - b.fy) * Math.min(Math.abs(b.y - b.fy), k); });
     // lave montante : elle part du bas après un court délai ; elle blesse dès qu'elle atteint Milo
     if (G.lava && G.state === 'play') { if (G.lavaHold > 0) G.lavaHold -= dt; else if (G.time > G.lava.g) G.lavaY = Math.max(2.5, G.lavaY - G.lava.v * dt * G.slowK); }
@@ -565,7 +583,7 @@
       const t = G.timed.find((q) => q.x === x && q.y === y); if (t && timedState(t, T) === 'on' && circRect(cx, cy, r, x + 0.14, y + 0.14, x + 0.86, y + 0.86)) { if (c === 'i') { G.seenI.add(t); return 'Piège caché !'; } if (c === 'j') return 'Le geyser !'; if (c === 'e') return 'Écrasé par la presse !'; return c === 'x' ? 'Les pics !' : c === 'z' ? 'Zzzap !' : 'Cristal !'; }
     }
     for (const p of G.proj) if (Math.hypot(p.x - cx, p.y - cy) < r + p.r) return { arrow: 'Une flèche !', seed: 'Une graine épineuse !', icicle: 'Une stalactite !', shard: 'Un éclat de glace !', meteor: 'Une météorite !', jet: 'Un jet d’eau !', anchor: 'Une ancre !', gear: 'Une scie !', sword: 'Une épée !', chandelier: 'Un lustre !' }[p.kind] || 'Un rocher !';
-    for (const bm of G.beams) { if (bm.t < 0.04) continue; if (bm.k === 'rows') { if (Math.floor(cy) >= bm.i && bm.t < bm.dur - 0.2) return bm.kind === 'shock' ? 'Le sol électrifié !' : 'La lave !'; continue; } if (bm.k === 'row' && Math.floor(cy) === bm.i && !solidAt(Math.floor(cx), bm.i)) return bm.kind === 'quake' ? 'Le séisme !' : bm.kind === 'thorn' ? 'Les ronces !' : bm.kind === 'sand' ? 'Les sables mouvants !' : bm.kind === 'frost' ? 'Le souffle glacé !' : bm.kind === 'magma' ? 'Le magma !' : bm.kind === 'tentacle' ? 'Le tentacule !' : bm.kind === 'press' ? 'Écrasé par la presse !' : bm.kind === 'curse' ? 'La malédiction !' : 'Le laser !'; if (bm.k === 'col' && Math.floor(cx) === bm.i && !solidAt(bm.i, Math.floor(cy))) return 'Le laser !'; }
+    for (const bm of G.beams) { if (bm.t < 0.04) continue; if (bm.k === 'rows') { if (Math.floor(cy) >= bm.i && bm.t < bm.dur - 0.2) return bm.kind === 'shock' ? 'Le sol électrifié !' : bm.kind === 'voidf' ? 'Le néant !' : 'La lave !'; continue; } if (bm.k === 'row' && Math.floor(cy) === bm.i && !solidAt(Math.floor(cx), bm.i)) return bm.kind === 'quake' ? 'Le séisme !' : bm.kind === 'thorn' ? 'Les ronces !' : bm.kind === 'sand' ? 'Les sables mouvants !' : bm.kind === 'frost' ? 'Le souffle glacé !' : bm.kind === 'magma' ? 'Le magma !' : bm.kind === 'tentacle' ? 'Le tentacule !' : bm.kind === 'press' ? 'Écrasé par la presse !' : bm.kind === 'curse' ? 'La malédiction !' : 'Le laser !'; if (bm.k === 'col' && Math.floor(cx) === bm.i && !solidAt(bm.i, Math.floor(cy))) return 'Le laser !'; }
     for (const e of G.ents) {
       if (Math.abs(e.fy + 0.5 - cy) > 6 && e.t !== 'laser') continue;
       if (e.t === 'arrow') { if (!e.on) continue; const ax = Math.abs(e.fx + 0.5 - cx), ay = Math.abs(e.fy + 0.5 - cy), hz = e.d % 2 === 1; if ((hz ? ax : ay) < 0.32 + r * 0.6 && (hz ? ay : ax) < 0.1 + r) return 'Une flèche !'; continue; }
@@ -614,6 +632,7 @@
     m.x = x; m.y = y; m.px = m.lpx = x; m.py = m.lpy = y; m.moving = false; m.prog = 0; m.pose = 'idle'; m.poseT = 0; m.invT = 2.2; m.sq = 0;
     if (G.lava) { G.lavaY = Math.max(G.lavaY, y + 6); G.lavaHold = 2.5; }
     if (G.o2Max) G.o2 = G.o2Max; G.invT = 0;
+    if (G.prisms) G.lit = new Set(G.litRest);
     G.hearts = G.maxHearts; G.respawns++; G.snapCam = true; G.warns.length = 0; G.proj.length = 0; G.beams.length = 0;
     G.ents.forEach((e) => { if (e.t === 'chaser' || e.t === 'ghost') { e.fx = e.tx = e.home[0]; e.fy = e.ty = e.home[1]; e.chase = false; } });
     fxTeleport(x, y); floatText('Checkpoint !', x, y - 0.7, '#9dffb0', true); sfx('tele'); hud(); last = 0;
@@ -652,9 +671,13 @@
     machine: { color: '#ffb44a', warn: '#ff8a1f', ph: [{ every: 2.3, n: 1, warn: 1.05, sp: 11, quake: 0 }, { every: 2.0, n: 2, warn: 0.95, sp: 12, quake: 4, flood: 3 }, { every: 1.75, n: 2, warn: 0.9, sp: 13, quake: 3, flood: 3, bots: 2 }] },
     // Roi maudit : épées volantes sur la rangée (les piliers protègent), lustres qui tombent, malédiction ; les chandelles s'éteignent, fantômes
     king: { color: '#8dffb8', warn: '#3fe08a', ph: [{ every: 2.3, warn: 1.05, sp: 11 }, { every: 2.0, warn: 0.95, sp: 12, cols: 2, dark: 3.6 }, { every: 1.75, warn: 0.9, sp: 13, cross: true, bots: 2, dark: 3.2 }] },
+    // Gardien des cristaux : rayons de lumière sur la rangée puis la colonne ; les cristaux s'éteignent, éclats vivants
+    prism: { color: '#e0d0ff', warn: '#b48cff', ph: [{ every: 2.3, warn: 1.05 }, { every: 2.0, warn: 0.95, cols: true, dark: 3.6 }, { every: 1.75, warn: 0.9, cols: true, cross: true, bots: 2, dark: 3.2 }] },
+    // Cœur du Néant (boss final, 9 PV) : il reprend les attaques de tous les gardiens (seq), inverse les commandes, puis le néant monte et la lumière s'éteint
+    nexus: { color: '#ff3df0', warn: '#ff3df0', ph: [{ every: 2.3, warn: 1.05, seq: ['guardian', 'pharaoh', 'spider', 'spirit', 'titan'] }, { every: 2.05, warn: 0.95, invert: 5, seq: ['golem', 'king', 'entity', 'leviathan', 'machine'] }, { every: 1.85, warn: 0.95, flood: 4, bots: 2, dark: 3.6, seq: ['pharaoh', 'guardian', 'spider', 'king', 'titan', 'machine'] }] },
     golem: { color: '#ffb03a', warn: '#ff5a1f', ph: [{ every: 2.35, n: 1, warn: 1.05, sp: 10.5, quake: 0 }, { every: 2.05, n: 2, warn: 0.95, sp: 11.5, quake: 4, flood: 3 }, { every: 1.8, n: 2, warn: 0.9, sp: 12.5, quake: 3, flood: 3, bots: 2 }] }
   };
-  const BCOL = { guardian: '#ffd84d', spider: '#5ef2ff', spirit: '#9dffb0', pharaoh: '#ffd45e', titan: '#bfefff', golem: '#ffb03a', leviathan: '#7af6e0', entity: '#ff7ae0', machine: '#ffb44a', king: '#8dffb8' };
+  const BCOL = { guardian: '#ffd84d', spider: '#5ef2ff', spirit: '#9dffb0', pharaoh: '#ffd45e', titan: '#bfefff', golem: '#ffb03a', leviathan: '#7af6e0', entity: '#ff7ae0', machine: '#ffb44a', king: '#8dffb8', prism: '#e0d0ff', nexus: '#ff3df0' };
   // rangée vue depuis un côté : première case pleine (la volée de flèches s'y arrête)
   function rowEnd(y, side) { if (side > 0) { for (let x = 1; x < G.W - 1; x++) if (solidAt(x, y)) return x; return G.W - 1; } for (let x = G.W - 2; x > 0; x--) if (solidAt(x, y)) return x; return 0; }
   const offCol = (mx) => { const c2 = mx + (Math.random() < 0.5 ? -1 : 1) * (2 + Math.floor(Math.random() * 2)); return clamp(c2 < 1 || c2 > G.W - 2 ? mx + (mx < 5 ? 3 : -3) : c2, 1, G.W - 2); };
@@ -664,18 +687,23 @@
   // un rocher lâché en haut de la colonne x s'arrête au premier mur : rangée d'arrêt
   function colEnd(x) { for (let y = 3; y < G.H - 1; y++) if (solidAt(x, y)) return y; return G.H - 1; }
   function bossAttack(b) {
-    const P = BOSSDEF[b.kind].ph[b.phase], m = G.milo, mx = clamp(m.x, 1, G.W - 2), my = clamp(m.y, 3, G.H - 2);
+    let kind = b.kind, P = BOSSDEF[kind].ph[b.phase]; const m = G.milo, mx = clamp(m.x, 1, G.W - 2), my = clamp(m.y, 3, G.H - 2);
     b.n++; b.eye = 0.7;
-    if (b.kind === 'guardian' || b.kind === 'spirit' || b.kind === 'golem' || b.kind === 'machine') {
+    if (kind === 'nexus') {
+      if (P.flood && b.n % P.flood === 0) { G.warns.push({ k: 'flood', i: G.H - 3, t: 0, dur: P.warn + 0.3, fire: 'flood', bk: 'voidf', col: '#ff3df0' }); sfx('lava'); floatText('Le néant monte !', G.W / 2 - 0.5, G.H - 4.2, '#ff9df5', true); return; }
+      if (P.invert && b.n % P.invert === 0 && !(G.invT > 0)) { G.warns.push({ k: 'inv', i: 0, t: 0, dur: 1.2, fire: 'invert' }); floatText('Inversion !', G.W / 2 - 0.5, 4.4, '#ff7ae0', true); sfx('tele'); }
+      kind = P.seq[b.n % P.seq.length]; P = Object.assign({}, BOSSDEF[kind].ph[b.phase], { warn: P.warn, flood: 0, invert: 0 });
+    }
+    if (kind === 'guardian' || kind === 'spirit' || kind === 'golem' || kind === 'machine') {
       // Milo à l'abri sous un pilier : le boss frappe sa rangée (séisme / ronces / magma) ; le golem inonde aussi le bas de l'arène
-      const rowEvery = P.quake || P.thorns, sp = b.kind === 'spirit', go = b.kind === 'golem', mc = b.kind === 'machine';
+      const rowEvery = P.quake || P.thorns, sp = kind === 'spirit', go = kind === 'golem', mc = kind === 'machine';
       if (P.flood && b.n % P.flood === 0) { G.warns.push({ k: 'flood', i: G.H - 3, t: 0, dur: P.warn + 0.3, fire: 'flood', bk: mc ? 'shock' : 'flood', col: mc ? '#ffe066' : '#ff5a1f' }); sfx(mc ? 'door' : 'lava'); floatText(mc ? 'Le sol s’électrifie !' : 'La lave monte !', G.W / 2 - 0.5, G.H - 4.2, mc ? '#ffe066' : '#ffb03a', true); return; }
       if ((rowEvery && b.n % rowEvery === 0) || colEnd(mx) <= my) { G.warns.push({ k: 'row', i: my, t: 0, dur: P.warn + 0.1, fire: sp ? 'thorn' : go ? 'magma' : mc ? 'press' : 'quake', col: sp ? '#b6ff5e' : go ? '#ff5a1f' : mc ? '#ffb44a' : '#ffb340' }); sfx('door'); return; }
       const dest = [slideX(mx, my, -1), slideX(mx, my, 1)].filter((x) => x !== mx), keep = dest.length ? dest[Math.floor(Math.random() * dest.length)] : -1;
       const cols = [mx]; for (let t = 0; cols.length < P.n && t < 40; t++) { const c2 = 1 + Math.floor(Math.random() * (G.W - 2)); if (c2 !== keep && !cols.some((q) => Math.abs(q - c2) < 2)) cols.push(c2); }
-      cols.forEach((c2) => G.warns.push({ k: 'col', i: c2, t: 0, dur: P.warn, fire: sp ? 'seed' : go ? 'meteor' : mc ? 'gearProj' : 'rock', sp: P.sp, col: BOSSDEF[b.kind].warn, end: colEnd(c2) }));
-    } else if (b.kind === 'pharaoh' || b.kind === 'titan' || b.kind === 'leviathan' || b.kind === 'king') {
-      const def = BOSSDEF[b.kind], FX = { pharaoh: ['arrowRow', 'arrowCol', 'sand', '#ffd45e'], titan: ['shardRow', 'icicle', 'frost', '#bfefff'], leviathan: ['jetRow', 'anchor', 'tentacle', '#7af6e0'], king: ['swordRow', 'chandelier', 'curse', '#8dffb8'] }[b.kind], clear = (sd) => { if (sd > 0) { for (let x = 1; x < mx; x++) if (solidAt(x, my)) return false; } else { for (let x = G.W - 2; x > mx; x--) if (solidAt(x, my)) return false; } return true; };
+      cols.forEach((c2) => G.warns.push({ k: 'col', i: c2, t: 0, dur: P.warn, fire: sp ? 'seed' : go ? 'meteor' : mc ? 'gearProj' : 'rock', sp: P.sp, col: BOSSDEF[kind].warn, end: colEnd(c2) }));
+    } else if (kind === 'pharaoh' || kind === 'titan' || kind === 'leviathan' || kind === 'king') {
+      const def = BOSSDEF[kind], FX = { pharaoh: ['arrowRow', 'arrowCol', 'sand', '#ffd45e'], titan: ['shardRow', 'icicle', 'frost', '#bfefff'], leviathan: ['jetRow', 'anchor', 'tentacle', '#7af6e0'], king: ['swordRow', 'chandelier', 'curse', '#8dffb8'] }[kind], clear = (sd) => { if (sd > 0) { for (let x = 1; x < mx; x++) if (solidAt(x, my)) return false; } else { for (let x = G.W - 2; x > mx; x--) if (solidAt(x, my)) return false; } return true; };
       const sides = [1, -1].filter(clear), side = sides.length ? sides[Math.floor(Math.random() * sides.length)] : (Math.random() < 0.5 ? 1 : -1);
       const row = () => G.warns.push({ k: 'row', i: my, t: 0, dur: P.warn, fire: FX[0], side, sp: P.sp + 2, end: rowEnd(my, side), col: def.warn });
       const colA = (x) => G.warns.push({ k: 'col', i: x, t: 0, dur: P.warn, fire: FX[1], sp: P.sp + 1, end: colEnd(x), col: def.warn });
@@ -713,13 +741,13 @@
     else if (w.fire === 'anchor') { G.proj.push({ x: w.i + 0.5, y: 2.9, vx: 0, vy: w.sp, r: 0.34, rot: 0, kind: 'anchor' }); sfx('boost'); }
     else if (w.fire === 'invert') { G.invT = 4.5; floatText('Commandes inversées !', G.milo.px, G.milo.py - 0.8, '#ff7ae0', true); vibrate([15, 30, 15]); hud(); }
     else if (w.fire === 'frost' || w.fire === 'magma' || w.fire === 'tentacle' || w.fire === 'curse') { G.beams.push({ k: 'row', i: w.i, t: 0, dur: 0.6, kind: w.fire }); G.shake = Math.max(G.shake, 0.5); sfx(w.fire === 'frost' ? 'ice' : 'lava'); }
-    else if (w.fire === 'flood') { G.beams.push({ k: 'rows', i: w.i, t: 0, dur: 2.2, kind: w.bk || 'flood' }); G.shake = Math.max(G.shake, 0.7); sfx('lava'); }
+    else if (w.fire === 'flood') { G.beams.push({ k: 'rows', i: w.i, t: 0, dur: 2.2, kind: w.bk || 'flood' }); if (w.bk === 'voidf') sfx('boo'); G.shake = Math.max(G.shake, 0.7); sfx('lava'); }
     else if (w.fire === 'sand') { G.beams.push({ k: 'row', i: w.i, t: 0, dur: 0.6, kind: 'sand' }); G.shake = Math.max(G.shake, 0.5); sfx('crumble'); }
     else if (w.fire === 'quake') { G.beams.push({ k: 'row', i: w.i, t: 0, dur: 0.55, kind: 'quake' }); G.shake = Math.max(G.shake, 0.6); sfx('bump', 1); }
     else { G.beams.push({ k: w.k, i: w.i, t: 0, dur: 0.5, kind: 'laser' }); noise({ d: 0.35, v: 0.05, f: 2200, f2: 6000, type: 'bandpass' }); }
   }
   function spawnBots() {
-    const look = { spirit: 'wisp', pharaoh: 'scarab', titan: 'snow', golem: 'ember', leviathan: 'fish', entity: 'void', king: 'ghostb' }[G.boss.kind] || null, sp = look === 'wisp' || look === 'void' ? 1.9 : look === 'snow' ? 2.0 : look === 'fish' ? 2.4 : 2.2;
+    const look = { spirit: 'wisp', pharaoh: 'scarab', titan: 'snow', golem: 'ember', leviathan: 'fish', entity: 'void', king: 'ghostb', prism: 'gem', nexus: 'void' }[G.boss.kind] || null, sp = look === 'wisp' || look === 'void' ? 1.9 : look === 'snow' || look === 'gem' ? 2.0 : look === 'fish' ? 2.4 : 2.2;
     [[1, 3], [G.W - 2, 3]].forEach(([x, y]) => G.ents.push({ i: G.ents.length, t: 'chaser', bot: true, look, a: [x, y], ex: x, ey: y, alive: true, home: [x, y], tx: x, ty: y, fx: x, fy: y, k: 0, anim: 0, chase: true, eyes: 0, on: false, sp, r: 99 }));
     G.ents.forEach((e) => { if (e.bot) floatText('!', e.fx, e.fy - 0.7, '#ff3d7f'); });
   }
@@ -729,7 +757,7 @@
     if (G.state !== 'play') return;
     const ph = bossPhase(b);
     if (ph !== b.phase) { b.phase = ph; const PP = BOSSDEF[b.kind].ph[ph]; floatText(ph === 1 ? 'Il s’énerve !' : 'Dernière phase !', G.W / 2 - 0.5, 4.2, BOSSDEF[b.kind].color, true); G.shake = 0.8; sfx('fail'); if (PP.bots) spawnBots();
-      if (PP.dark) { if (!G.dark) { G.light = 11; floatText(b.kind === 'leviathan' ? 'L’encre envahit l’eau…' : b.kind === 'king' ? 'Les chandelles s’éteignent…' : 'La forêt s’assombrit…', G.W / 2 - 0.5, 5.3, b.kind === 'leviathan' ? '#7af6e0' : b.kind === 'king' ? '#8dffb8' : '#b6ff5e'); } G.dark = PP.dark; } }
+      if (PP.dark) { if (!G.dark) { G.light = 11; floatText(b.kind === 'leviathan' ? 'L’encre envahit l’eau…' : b.kind === 'king' ? 'Les chandelles s’éteignent…' : b.kind === 'prism' ? 'Les cristaux s’éteignent…' : b.kind === 'nexus' ? 'Le néant dévore la lumière…' : 'La forêt s’assombrit…', G.W / 2 - 0.5, 5.3, b.kind === 'leviathan' ? '#7af6e0' : b.kind === 'king' ? '#8dffb8' : b.kind === 'prism' ? '#e0d0ff' : b.kind === 'nexus' ? '#ff9df5' : '#b6ff5e'); } G.dark = PP.dark; } }
     if (b.calm > 0) { b.calm -= dt; return; }
     b.next -= dt * G.slowK; if (b.next <= 0) { bossAttack(b); b.next = BOSSDEF[b.kind].ph[b.phase].every; }
   }
@@ -739,7 +767,7 @@
     fxBurst(G.W / 2, 1.7, ['#ffffff', BOSSDEF[b.kind].color, '#ffd84d'], 34, 6); hud();
     if (b.hp <= 0) {
       b.dead = true; b.deadT = 0; G.proj.length = 0; G.beams.length = 0; G.ents = G.ents.filter((e) => !e.bot);
-      floatText('Boss vaincu !', G.W / 2 - 0.5, 4.5, '#ffd84d', true); sfx('win'); try { api.fx.confetti(90); } catch (e) {}
+      const fin = WORLDS[G.wi].id === 'finale'; floatText(fin ? 'Le Néant est vaincu !' : 'Boss vaincu !', G.W / 2 - 0.5, 4.5, '#ffd84d', true); sfx('win'); try { api.fx.confetti(fin ? 160 : 90); } catch (e) {}
       setTimeout(() => { if (G && G.boss && G.state === 'play') win(); }, 1700);
     } else floatText(`${b.hp} / ${b.max}`, t[0], t[1] - 0.7, '#ffd84d', true);
   }
@@ -843,6 +871,12 @@
         if (deco === 'glyph' && isW(tx, ty) && h < 0.1) { R(ox + 2, oy + 2, 4, 4, hexA(pal.edge, 0.5)); R(ox + 3, oy + 3, 2, 2, pal.deep); }
         if (deco === 'crystal' && isW(tx, ty) && !isW(tx, ty - 1) && ty - 1 >= 0 && h < 0.2) { const col = h < 0.1 ? '#ff7ae0' : '#5ee7ff'; R(ox + 3, oy - 3, 2, 3, col); R(ox + 2, oy - 1, 1, 1, col); R(ox + 5, oy - 2, 1, 2, col); R(ox + 3, oy - 3, 1, 1, '#ffffff'); }
         if (deco === 'crystal' && !isW(tx, ty) && h < 0.08) R(ox + 4, oy + 4, 1, 1, '#ffffff');
+        if (deco === 'gems' && isW(tx, ty) && !isW(tx, ty - 1) && ty - 1 >= 0 && h < 0.24) { const col = ['#b48cff', '#5ef2ff', '#ff9de9'][Math.floor(hash(tx, ty, 22) * 3)], bx = ox + 1 + Math.floor(hash(tx, ty, 23) * 4); R(bx, oy - 2, 1, 2, hexA(col, 0.85)); R(bx + 1, oy - 4, 2, 4, col); R(bx + 1, oy - 4, 1, 1, '#ffffff'); R(bx + 3, oy - 2, 1, 2, hexA(col, 0.7)); }
+        if (deco === 'gems' && isW(tx, ty) && h > 0.9) { R(ox + 3, oy + 3, 2, 2, hexA('#5ef2ff', 0.55)); R(ox + 3, oy + 3, 1, 1, '#ffffff'); }
+        if (deco === 'gems' && !isW(tx, ty) && h < 0.05) R(ox + 2 + Math.floor(h * 80) % 4, oy + 2 + Math.floor(h * 120) % 4, 1, 1, '#ffd0ff');
+        if (deco === 'glitch' && isW(tx, ty) && h < 0.1) { const yy = oy + 1 + Math.floor(hash(tx, ty, 24) * 6); R(ox, yy, P, 1, hexA('#ff3df0', 0.5)); R(ox + 1, yy, P - 1, 1, hexA('#5ee7ff', 0.35)); }
+        if (deco === 'glitch' && isW(tx, ty) && h > 0.94) for (let i = 0; i < 3; i++) R(ox + 1 + Math.floor(hash(tx, ty, 25 + i) * 6), oy + 1 + Math.floor(hash(tx, ty, 28 + i) * 6), 1, 1, hexA('#ffffff', 0.5));
+        if (deco === 'glitch' && !isW(tx, ty) && h < 0.04) R(ox + Math.floor(h * 150) % 7, oy + Math.floor(h * 200) % 7, 1, 1, hexA('#ffd84d', 0.45));
         if (deco === 'sun' && isW(tx, ty) && h < 0.09) { R(ox + 3, oy + 3, 2, 2, pal.accent); R(ox + 3, oy + 1, 2, 1, hexA(pal.accent, 0.6)); R(ox + 3, oy + 6, 2, 1, hexA(pal.accent, 0.6)); R(ox + 1, oy + 3, 1, 2, hexA(pal.accent, 0.6)); R(ox + 6, oy + 3, 1, 2, hexA(pal.accent, 0.6)); }
       }
       UI.chunks.push(k);
@@ -889,6 +923,8 @@
       else if (ch >= '1' && ch <= '4') drawPortal(c, ch, px, py, now);
       else if (ch >= '6' && ch <= '9') drawGear(c, ch, px, py, now);
       else if (ch === 'X') drawFake(c, px, py, now);
+      else if (ch === 'l' || ch === 'I') drawPrism(c, ch, x, y, px, py, now);
+      else if (ch === 'd' || ch === 'f' || ch === 'h') drawVoid(c, ch, px, py, now);
       else if ('gPpoab*KQCFLuUyYnAGr'.includes(ch)) drawMech(c, ch, px, py, now);
       if (ch === 'E' && !G.exitOpen) drawExitLock(c, px, py);
     }
@@ -909,6 +945,7 @@
       c.fillStyle = p.c.startsWith('#') ? hexA(p.c, k) : p.c; const s = p.s * cs * (0.5 + k * 0.5);
       if (p.star) { c.save(); c.translate(p.x * cs, p.y * cs); c.rotate(p.t * 4); c.fillRect(-s / 2, -s / 6, s, s / 3); c.fillRect(-s / 6, -s / 2, s / 3, s); c.restore(); } else if (p.sq) c.fillRect(p.x * cs - s / 2, p.y * cs - s / 2, s, s); else { c.beginPath(); c.arc(p.x * cs, p.y * cs, s / 2, 0, 7); c.fill(); } });
     c.globalCompositeOperation = 'source-over';
+    if (WORLDS[G.wi].deco === 'glitch' && !UI.lowfx && now % 3.7 < 0.14) { const n0 = Math.floor(now / 3.7); for (let i = 0; i < 3; i++) { const yy = (G.cam + hash(n0, i, 31) * (H / cs)) * cs, hh = cs * (0.12 + hash(i, n0, 32) * 0.35), dx = (hash(i, 7, Math.floor(now * 30)) - 0.5) * cs * 0.5; c.fillStyle = hexA(i % 2 ? '#5ee7ff' : '#ff3df0', 0.16); c.fillRect(dx, yy, G.W * cs, hh); } }
     // obscurité (Forêt, phase 2 de l'Esprit) : ce qui doit rester lisible est redessiné par-dessus
     if (G.dark) { c.restore(); drawDark(c, W, H, ox, oy, now); c.save(); c.translate(ox, oy); drawOverDark(c, now); }
     // textes
@@ -929,7 +966,7 @@
     x.globalCompositeOperation = 'destination-out';
     const L = [[m.px + 0.5, m.py + 0.5, G.light * (0.97 + 0.03 * Math.sin(now * 9)), 1]], r0 = Math.max(0, Math.floor(G.cam) - 3), r1 = Math.min(G.H, G.cam + H / cs + 3);
     if (G.exit) L.push([G.exit[0] + 0.5, G.exit[1] + 0.5, 2.3, 0.9]);
-    for (let y = r0; y < r1; y++) for (let xx = 0; xx < G.W; xx++) { const ch = G.grid[y][xx]; if (ch === 'L') L.push([xx + 0.5, y + 0.5, 1.15, 0.75]); else if (ch === 'F') L.push([xx + 0.5, y + 0.5, G.cpOn.has(y * G.W + xx) ? 1.9 : 1.0, 0.8]); else if (ch === '*') L.push([xx + 0.5, y + 0.5, 0.8, 0.55]); }
+    for (let y = r0; y < r1; y++) for (let xx = 0; xx < G.W; xx++) { const ch = G.grid[y][xx]; if (ch === 'L') L.push([xx + 0.5, y + 0.5, 1.15, 0.75]); else if (ch === 'l') L.push([xx + 0.5, y + 0.5, G.lit.has(y * G.W + xx) ? 1.6 : 0.75, 0.75]); else if (ch === 'I' && !lightOpen()) L.push([xx + 0.5, y + 0.5, 0.9, 0.6]); else if (ch === 'F') L.push([xx + 0.5, y + 0.5, G.cpOn.has(y * G.W + xx) ? 1.9 : 1.0, 0.8]); else if (ch === '*') L.push([xx + 0.5, y + 0.5, 0.8, 0.55]); }
     G.shrooms.forEach((sh) => { if (sh.y > r0 && sh.y < r1) L.push([sh.x + 0.5, sh.y + 0.85, 1.05, 0.6]); });
     if (G.boss) { L.push([G.W / 2, 1.6, 3.4, 0.85]); const t = !G.boss.dead && G.boss.targets[G.boss.ti]; if (t) L.push([t[0] + 0.5, t[1] + 0.5, 1.7, 0.9]); }
     for (const [lx, ly, r, a] of L) { const sx = (ox + lx * cs) * q, sy = (oy + ly * cs) * q, rr = r * cs * q; if (sx + rr < 0 || sx - rr > kw || sy + rr < 0 || sy - rr > kh) continue;
@@ -1039,6 +1076,41 @@
       c.fillStyle = '#ffd84d'; c.fillRect(px + cs * 0.16, py + cs * 0.42, cs * 0.68, cs * 0.07); c.fillRect(px + cs * 0.44, py + cs * 0.38, cs * 0.12, cs * 0.18);
     }
   }
+  // prisme de lumière « l » (s'allume / s'éteint à chaque passage) et porte de lumière « I »
+  function drawPrism(c, ch, tx, ty, px, py, now) {
+    const cs = UI.cs, x = px + cs / 2, y = py + cs / 2;
+    if (ch === 'I') {
+      const n = G.prisms, on = G.lit.size;
+      if (lightOpen()) { c.strokeStyle = hexA('#e8fbff', 0.3 + 0.15 * Math.sin(now * 4 + tx)); c.lineWidth = cs * 0.04; c.setLineDash([cs * 0.1, cs * 0.1]); c.strokeRect(px + cs * 0.1, py + cs * 0.1, cs * 0.8, cs * 0.8); c.setLineDash([]); return; }
+      const gg = c.createRadialGradient(x, y, 0, x, y, cs * 0.9); gg.addColorStop(0, 'rgba(224,208,255,.35)'); gg.addColorStop(1, 'rgba(180,140,255,0)'); c.fillStyle = gg; c.fillRect(px - cs * 0.4, py - cs * 0.4, cs * 1.8, cs * 1.8);
+      c.fillStyle = 'rgba(180,140,255,.3)'; c.fillRect(px, py + cs * 0.04, cs, cs * 0.92);
+      for (let i = 0; i < 4; i++) { const a = 0.5 + 0.45 * Math.sin(now * 7 + i * 1.3 + tx + ty); c.fillStyle = hexA(i % 2 ? '#5ef2ff' : '#ffffff', a); c.fillRect(px + cs * (0.12 + i * 0.24), py + cs * 0.06, cs * 0.07, cs * 0.88); }
+      c.fillStyle = '#b48cff'; c.fillRect(px, py + cs * 0.02, cs, cs * 0.08); c.fillRect(px, py + cs * 0.9, cs, cs * 0.08);
+      for (let i = 0; i < n; i++) { const dx = x + (i - (n - 1) / 2) * cs * 0.27, s = cs * 0.1; c.fillStyle = i < on ? '#ffffff' : '#2a1458'; c.beginPath(); c.moveTo(dx, y - s * 1.1); c.lineTo(dx + s * 1.1, y + s * 0.9); c.lineTo(dx - s * 1.1, y + s * 0.9); c.closePath(); c.fill(); c.strokeStyle = '#e0d0ff'; c.lineWidth = cs * 0.025; c.stroke(); }
+      return;
+    }
+    const lit = G.lit.has(ty * G.W + tx), s = cs * 0.3, bob = lit ? Math.sin(now * 3 + tx) * cs * 0.04 : 0, yy = y - cs * 0.04 + bob;
+    if (lit) { const g = c.createRadialGradient(x, yy, 0, x, yy, cs * 1.1); g.addColorStop(0, 'rgba(232,251,255,.6)'); g.addColorStop(1, 'rgba(94,242,255,0)'); c.fillStyle = g; c.fillRect(x - cs * 1.1, yy - cs * 1.1, cs * 2.2, cs * 2.2);
+      c.save(); c.translate(x, yy); c.rotate(now * 0.8); c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = cs * 0.035; for (let i = 0; i < 4; i++) { c.rotate(Math.PI / 4); c.beginPath(); c.moveTo(0, -cs * 0.36); c.lineTo(0, -cs * 0.48); c.stroke(); } c.restore(); }
+    // prisme triangulaire sur socle (les cristaux à collectionner restent des losanges)
+    c.fillStyle = lit ? '#5a2aa0' : '#1c0c40'; c.fillRect(x - cs * 0.34, y + cs * 0.27, cs * 0.68, cs * 0.1);
+    const tri = () => { c.beginPath(); c.moveTo(x, yy - s * 1.15); c.lineTo(x + s * 1.05, yy + s * 0.78); c.lineTo(x - s * 1.05, yy + s * 0.78); c.closePath(); };
+    c.fillStyle = lit ? '#f4fdff' : '#3a1e70'; tri(); c.fill();
+    c.fillStyle = lit ? '#5ef2ff' : '#5a3a98'; c.beginPath(); c.moveTo(x, yy - s * 1.15); c.lineTo(x + s * 1.05, yy + s * 0.78); c.lineTo(x + s * 0.1, yy + s * 0.78); c.closePath(); c.fill();
+    c.strokeStyle = lit ? '#ffffff' : 'rgba(154,122,224,.85)'; c.lineWidth = cs * 0.04; tri(); c.stroke();
+    if (!lit && Math.sin(now * 2.2 + tx * 1.7 + ty) > 0.85) { c.fillStyle = 'rgba(224,208,255,.7)'; c.fillRect(x - cs * 0.03, yy - s * 0.6, cs * 0.06, cs * 0.06); }
+  }
+  // mur du néant : plein quand sa couleur est active, en pointillés sinon ; la prochaine couleur active clignote doucement
+  function drawVoid(c, ch, px, py, now) {
+    const cs = UI.cs, i = VOIDC.indexOf(ch), col = VCOL[ch], solid = i === G.cyc, prev = i === (G.cyc + 2) % 3, next = i === (G.cyc + 1) % 3, k = Math.min(1, G.cycT * 6), lift = solid ? k : prev ? 1 - k : 0;
+    if (lift > 0.02) { const m = cs * 0.44 * (1 - lift), x0 = px + cs * 0.04 + m, y0 = py + cs * 0.04 + m, w = cs * 0.92 - 2 * m;
+      c.fillStyle = '#07070d'; c.fillRect(x0, y0, w, w); c.fillStyle = hexA(col, 0.5 * lift); c.fillRect(x0, y0, w, w);
+      c.fillStyle = 'rgba(0,0,0,.35)'; for (let j = 0; j < 4; j++) { const sy = py + cs * (0.12 + j * 0.22); if (sy > y0 && sy < y0 + w) c.fillRect(x0, sy, w, cs * 0.05); }
+      if (solid && Math.sin(now * 13 + px * 0.7 + py) > 0.95) { c.fillStyle = hexA(col, 0.85); c.fillRect(px + cs * 0.12, py + cs * (0.3 + 0.3 * Math.sin(now * 40)), cs * 0.9, cs * 0.07); } }
+    c.strokeStyle = hexA(col, solid ? 0.95 : next ? 0.45 + 0.3 * Math.sin(now * 6) : 0.38); c.lineWidth = cs * (solid ? 0.07 : 0.05); if (!solid) c.setLineDash([cs * 0.1, cs * 0.08]); c.strokeRect(px + cs * 0.08, py + cs * 0.08, cs * 0.84, cs * 0.84); c.setLineDash([]);
+    const x = px + cs / 2, y = py + cs / 2, r = cs * 0.12; c.fillStyle = solid ? '#ffffff' : hexA(col, next ? 0.75 : 0.5);
+    if (i === 0) { c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); } else if (i === 1) { c.beginPath(); c.moveTo(x, y - r * 1.2); c.lineTo(x + r * 1.15, y + r * 0.85); c.lineTo(x - r * 1.15, y + r * 0.85); c.closePath(); c.fill(); } else c.fillRect(x - r, y - r, r * 2, r * 2);
+  }
   function drawExitLock(c, px, py) {
     const cs = UI.cs, left = G.coinsTotal - G.got; c.fillStyle = 'rgba(10,5,30,.72)'; c.fillRect(px + cs * 0.1, py + cs * 0.1, cs * 0.8, cs * 0.8);
     c.fillStyle = '#ffd84d'; c.fillRect(px + cs * 0.32, py + cs * 0.42, cs * 0.36, cs * 0.3); c.strokeStyle = '#ffd84d'; c.lineWidth = cs * 0.07; c.beginPath(); c.arc(px + cs / 2, py + cs * 0.42, cs * 0.12, Math.PI, 0); c.stroke();
@@ -1083,6 +1155,9 @@
     G.beams.forEach((bm) => { const a = 1 - bm.t / bm.dur;
       if (bm.kind === 'shock') { const fa = Math.min(1, bm.t / 0.15, (bm.dur - bm.t) / 0.3); c.fillStyle = hexA('#ffe066', 0.18 * fa); c.fillRect(cs, bm.i * cs, (G.W - 2) * cs, (G.H - 1 - bm.i) * cs); c.strokeStyle = hexA('#fff3b0', 0.9 * fa); c.lineWidth = cs * 0.06;
         for (let yy = bm.i; yy < G.H - 1; yy++) { c.beginPath(); for (let x = 1; x <= G.W - 1; x += 0.5) { const py2 = yy * cs + cs / 2 + (Math.random() - 0.5) * cs * 0.6; if (x === 1) c.moveTo(x * cs, py2); else c.lineTo(x * cs, py2); } c.stroke(); } return; }
+      if (bm.kind === 'voidf') { const fa = Math.min(1, bm.t / 0.15, (bm.dur - bm.t) / 0.3); c.fillStyle = hexA('#05000a', 0.82 * fa); c.fillRect(cs, bm.i * cs, (G.W - 2) * cs, (G.H - 1 - bm.i) * cs);
+        for (let yy = bm.i; yy < G.H - 1; yy++) for (let x = 1; x < G.W - 1; x++) if (Math.random() < 0.35) { c.fillStyle = hexA(['#ff3df0', '#5ee7ff', '#ffd84d'][(x + yy) % 3], 0.6 * fa); c.fillRect(x * cs + Math.random() * cs * 0.6, yy * cs + Math.random() * cs * 0.85, cs * 0.4, cs * 0.08); }
+        c.strokeStyle = hexA('#ff3df0', 0.9 * fa); c.lineWidth = cs * 0.07; c.beginPath(); c.moveTo(cs, bm.i * cs); c.lineTo((G.W - 1) * cs, bm.i * cs); c.stroke(); return; }
       if (bm.kind === 'press') { for (let x = 1; x < G.W - 1; x++) { if (solidAt(x, bm.i)) continue; const px = x * cs, py = bm.i * cs, k = Math.min(1, bm.t / 0.08); c.globalAlpha = a; c.fillStyle = '#8a929e'; c.fillRect(px + cs * 0.06, py - cs * 0.6 * (1 - k), cs * 0.88, cs * 0.9); c.fillStyle = '#ffb44a'; c.fillRect(px + cs * 0.06, py + cs * 0.7 - cs * 0.6 * (1 - k), cs * 0.88, cs * 0.1); c.globalAlpha = 1; } return; }
       if (bm.kind === 'curse') { for (let x = 1; x < G.W - 1; x++) { if (solidAt(x, bm.i)) continue; const px = x * cs + cs / 2, py = bm.i * cs + cs * 0.9, hh = cs * (0.6 + 0.2 * Math.sin(now * 20 + x)), g = c.createLinearGradient(0, py - hh, 0, py); g.addColorStop(0, 'rgba(141,255,184,0)'); g.addColorStop(1, hexA('#8dffb8', 0.9 * a)); c.fillStyle = g; c.beginPath(); c.moveTo(px - cs * 0.3, py); c.quadraticCurveTo(px - cs * 0.2, py - hh * 0.6, px, py - hh); c.quadraticCurveTo(px + cs * 0.2, py - hh * 0.6, px + cs * 0.3, py); c.fill(); } return; }
       if (bm.kind === 'flood') { const fa = Math.min(1, bm.t / 0.2, (bm.dur - bm.t) / 0.4), ly = bm.i * cs + (1 - fa) * cs * 1.5, g = c.createLinearGradient(0, ly, 0, (G.H - 1) * cs); g.addColorStop(0, '#ffb03a'); g.addColorStop(0.3, '#ff5a1f'); g.addColorStop(1, '#8a1a04'); c.fillStyle = g; c.globalAlpha = 0.92;
@@ -1107,6 +1182,8 @@
       else if (b.kind === 'king') { c.beginPath(); c.moveTo(x - cs * 0.22, y + cs * 0.14); c.lineTo(x - cs * 0.22, y - cs * 0.12); c.lineTo(x - cs * 0.1, y); c.lineTo(x, y - cs * 0.2); c.lineTo(x + cs * 0.1, y); c.lineTo(x + cs * 0.22, y - cs * 0.12); c.lineTo(x + cs * 0.22, y + cs * 0.14); c.closePath(); c.fill(); }
       else if (b.kind === 'leviathan') { c.lineWidth = cs * 0.06; c.beginPath(); c.moveTo(x, y + cs * 0.24); c.lineTo(x, y - cs * 0.2); [-0.15, 0, 0.15].forEach((dx) => { c.moveTo(x + dx * cs, y - cs * 0.06); c.lineTo(x + dx * cs, y - cs * 0.24); }); c.moveTo(x - cs * 0.15, y - cs * 0.06); c.lineTo(x + cs * 0.15, y - cs * 0.06); c.stroke(); }
       else if (b.kind === 'entity') { c.beginPath(); for (let i = 0; i < 8; i++) { const a = (i * Math.PI) / 4 + now, rr = i % 2 ? cs * 0.08 : cs * 0.24; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } c.closePath(); c.fill(); }
+      else if (b.kind === 'prism') { c.beginPath(); c.moveTo(x, y - cs * 0.26); c.lineTo(x + cs * 0.16, y); c.lineTo(x, y + cs * 0.26); c.lineTo(x - cs * 0.16, y); c.closePath(); c.fill(); c.fillStyle = '#ffffff'; c.fillRect(x - cs * 0.04, y - cs * 0.12, cs * 0.08, cs * 0.08); }
+      else if (b.kind === 'nexus') { ['#ff3df0', '#5ee7ff', '#ffd84d'].forEach((col, i) => { const a = now * 2 + (i * Math.PI * 2) / 3; c.fillStyle = col; c.beginPath(); c.arc(x + Math.cos(a) * cs * 0.13, y + Math.sin(a) * cs * 0.13, cs * 0.08, 0, 7); c.fill(); }); }
       else if (b.kind === 'titan') { c.lineWidth = cs * 0.06; for (let i = 0; i < 3; i++) { const a = (i * Math.PI) / 3; c.beginPath(); c.moveTo(x - Math.cos(a) * cs * 0.22, y - Math.sin(a) * cs * 0.22); c.lineTo(x + Math.cos(a) * cs * 0.22, y + Math.sin(a) * cs * 0.22); c.stroke(); } }
       else if (b.kind === 'golem') { c.beginPath(); c.moveTo(x, y - cs * 0.24); c.lineTo(x + cs * 0.17, y); c.lineTo(x, y + cs * 0.24); c.lineTo(x - cs * 0.17, y); c.closePath(); c.fill(); c.fillStyle = '#fff3b0'; c.fillRect(x - cs * 0.05, y - cs * 0.05, cs * 0.1, cs * 0.1); }
       else if (b.kind === 'spirit') { c.beginPath(); c.moveTo(x, y - cs * 0.24); c.quadraticCurveTo(x + cs * 0.2, y, x, y + cs * 0.24); c.quadraticCurveTo(x - cs * 0.2, y, x, y - cs * 0.24); c.fill(); c.strokeStyle = '#1e4a1a'; c.lineWidth = cs * 0.03; c.beginPath(); c.moveTo(x, y - cs * 0.2); c.lineTo(x, y + cs * 0.2); c.stroke(); }
@@ -1116,7 +1193,7 @@
   }
   function drawBoss(c, now) {
     const b = G.boss, cs = UI.cs, k = b.dead ? Math.max(0, 1 - b.deadT / 1.3) : 1; if (k <= 0) return;
-    const EYE = { spider: ['#5ef2ff', '#ffd84d', '#ff4fd8'], guardian: ['#c9a8ff', '#ffb340', '#ff4f6d'], spirit: ['#b6ff5e', '#ffd45e', '#ff5ef0'], pharaoh: ['#5ef2ff', '#ffb340', '#ff4f4f'], titan: ['#8fd8ff', '#ffffff', '#7a8cff'], golem: ['#ffb03a', '#ff5a1f', '#ffe066'], leviathan: ['#7af6e0', '#ffd45e', '#ff5e7a'], entity: ['#5ee7ff', '#ff7ae0', '#ffffff'], machine: ['#ff4f4f', '#ffb44a', '#ffffff'], king: ['#8dffb8', '#ffd45e', '#ff4f6d'] }, eye = EYE[b.kind][b.phase], open = 0.35 + b.eye * 0.9;
+    const EYE = { spider: ['#5ef2ff', '#ffd84d', '#ff4fd8'], guardian: ['#c9a8ff', '#ffb340', '#ff4f6d'], spirit: ['#b6ff5e', '#ffd45e', '#ff5ef0'], pharaoh: ['#5ef2ff', '#ffb340', '#ff4f4f'], titan: ['#8fd8ff', '#ffffff', '#7a8cff'], golem: ['#ffb03a', '#ff5a1f', '#ffe066'], leviathan: ['#7af6e0', '#ffd45e', '#ff5e7a'], entity: ['#5ee7ff', '#ff7ae0', '#ffffff'], machine: ['#ff4f4f', '#ffb44a', '#ffffff'], king: ['#8dffb8', '#ffd45e', '#ff4f6d'], prism: ['#5ef2ff', '#ff9de9', '#ffffff'], nexus: ['#ffd84d', '#ff3df0', '#5ee7ff'] }, eye = EYE[b.kind][b.phase], open = 0.35 + b.eye * 0.9;
     c.save(); c.globalAlpha = k; c.translate((G.W / 2) * cs + (b.hitT > 0 ? (Math.random() - 0.5) * cs * 0.25 : 0), 1.55 * cs + Math.sin(now * 1.7) * cs * 0.07); if (b.dead) c.rotate(Math.sin(b.deadT * 30) * 0.05);
     if (b.kind === 'guardian') {
       const w = cs * 6.2, h = cs * 2.5;
@@ -1187,6 +1264,24 @@
       const g = c.createRadialGradient(0, 0, 0, 0, 0, R0); g.addColorStop(0, '#ffffff'); g.addColorStop(0.35, '#e8d0ff'); g.addColorStop(1, '#5a1aa0'); c.fillStyle = g; c.beginPath(); c.arc(0, 0, R0 * 0.85, 0, 7); c.fill();
       const ir = R0 * 0.42, ox2 = Math.sin(now * 0.9) * cs * 0.15; c.fillStyle = eye; c.beginPath(); c.arc(ox2, 0, ir, 0, 7); c.fill(); c.fillStyle = '#05010f'; c.beginPath(); c.ellipse(ox2, 0, ir * 0.35, ir * (0.3 + open * 0.5), 0, 0, 7); c.fill(); c.fillStyle = '#ffffff'; c.fillRect(ox2 - ir * 0.5, -ir * 0.55, ir * 0.25, ir * 0.25);
       c.strokeStyle = 'rgba(30,0,60,.8)'; c.lineWidth = cs * 0.05; for (let i = 0; i < b.max - b.hp; i++) { const a = hash(i, 17, 77) * Math.PI * 2; c.beginPath(); c.moveTo(Math.cos(a) * R0 * 0.85, Math.sin(a) * R0 * 0.85); c.lineTo(Math.cos(a) * R0 * 0.5, Math.sin(a) * R0 * 0.5 + cs * 0.1); c.stroke(); }
+    } else if (b.kind === 'prism') {
+      const R0 = cs * 1.25, sp = now * 0.8;
+      for (let i = 0; i < 6; i++) { const a = sp + (i / 6) * Math.PI * 2, s = cs * (0.2 + (i % 2) * 0.08); c.save(); c.translate(Math.cos(a) * cs * 2.35, Math.sin(a) * cs * 0.55); c.rotate(a * 2); c.fillStyle = ['#b48cff', '#5ef2ff', '#ff9de9'][i % 3]; c.beginPath(); c.moveTo(0, -s * 1.4); c.lineTo(s * 0.6, 0); c.lineTo(0, s * 1.4); c.lineTo(-s * 0.6, 0); c.closePath(); c.fill(); c.fillStyle = 'rgba(255,255,255,.6)'; c.fillRect(-s * 0.15, -s * 0.8, s * 0.25, s * 0.5); c.restore(); }
+      const hg = c.createRadialGradient(0, 0, 0, 0, 0, R0 * 1.8); hg.addColorStop(0, hexA(eye, 0.35)); hg.addColorStop(1, hexA(eye, 0)); c.fillStyle = hg; c.fillRect(-R0 * 1.8, -R0 * 1.8, R0 * 3.6, R0 * 3.6);
+      const pts = [[0, -1.25], [0.85, -0.45], [0.7, 0.6], [0, 1.15], [-0.7, 0.6], [-0.85, -0.45]], fc = ['#e8d8ff', '#b48cff', '#7a4ad0', '#5a2aa0', '#8a5ae0', '#d0b8ff'];
+      for (let i = 0; i < 6; i++) { const p1 = pts[i], p2 = pts[(i + 1) % 6]; c.fillStyle = fc[i]; c.beginPath(); c.moveTo(0, 0); c.lineTo(p1[0] * R0, p1[1] * R0); c.lineTo(p2[0] * R0, p2[1] * R0); c.closePath(); c.fill(); }
+      c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = cs * 0.04; c.beginPath(); pts.forEach(([qx, qy], i) => (i ? c.lineTo(qx * R0, qy * R0) : c.moveTo(qx * R0, qy * R0))); c.closePath(); c.stroke();
+      const ir = cs * 0.38, ey = -cs * 0.05, gg = c.createRadialGradient(0, ey, 0, 0, ey, cs * 0.9); gg.addColorStop(0, hexA(eye, 0.7)); gg.addColorStop(1, hexA(eye, 0)); c.fillStyle = gg; c.fillRect(-cs * 0.9, ey - cs * 0.9, cs * 1.8, cs * 1.8);
+      c.fillStyle = '#1a0b33'; c.beginPath(); c.ellipse(0, ey, ir, ir * 0.7, 0, 0, 7); c.fill(); c.fillStyle = eye; c.beginPath(); c.ellipse(0, ey, ir * 0.55, ir * 0.55 * (0.3 + open * 0.6), 0, 0, 7); c.fill(); c.fillStyle = '#ffffff'; c.fillRect(-ir * 0.35, ey - ir * 0.35, ir * 0.22, ir * 0.22);
+      c.strokeStyle = 'rgba(26,11,51,.85)'; c.lineWidth = cs * 0.05; for (let i = 0; i < b.max - b.hp; i++) { const a = hash(i, 23, 77) * Math.PI * 2; c.beginPath(); c.moveTo(Math.cos(a) * R0 * 0.75, Math.sin(a) * R0 * 0.75); c.lineTo(Math.cos(a + 0.3) * R0 * 0.42, Math.sin(a + 0.3) * R0 * 0.42); c.lineTo(Math.cos(a - 0.2) * R0 * 0.22, Math.sin(a - 0.2) * R0 * 0.22); c.stroke(); }
+    } else if (b.kind === 'nexus') {
+      const R0 = cs * 1.2, gl = Math.sin(now * 23) > 0.93 ? (Math.random() - 0.5) * cs * 0.3 : 0, VC = ['#ff3df0', '#5ee7ff', '#ffd84d'];
+      for (let i = 0; i < 3; i++) { c.save(); c.rotate(now * (0.5 + i * 0.3) * (i % 2 ? -1 : 1) + i); c.strokeStyle = hexA(VC[i], 0.75); c.lineWidth = cs * 0.08; c.setLineDash([cs * 0.5, cs * 0.25]); c.beginPath(); c.ellipse(0, 0, R0 * (1.55 + i * 0.3), R0 * (0.42 + i * 0.08), 0, 0, 7); c.stroke(); c.restore(); } c.setLineDash([]);
+      for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2 + now * 0.4, l = R0 * (1.1 + 0.25 * Math.sin(now * 3 + i * 1.7)); c.strokeStyle = 'rgba(0,0,0,.85)'; c.lineWidth = cs * 0.14; c.lineCap = 'round'; c.beginPath(); c.moveTo(Math.cos(a) * R0 * 0.7, Math.sin(a) * R0 * 0.7); c.quadraticCurveTo(Math.cos(a + 0.4) * l, Math.sin(a + 0.4) * l * 0.8, Math.cos(a + 0.2) * l * 1.25, Math.sin(a + 0.2) * l); c.stroke(); } c.lineCap = 'butt';
+      c.save(); c.globalCompositeOperation = 'lighter'; [[-1, 0, VC[0]], [1, 0, VC[1]], [0, 1, VC[2]]].forEach(([dx, dy, col]) => { c.fillStyle = hexA(col, 0.45); c.beginPath(); c.arc(dx * cs * 0.08 + gl, dy * cs * 0.08, R0 * 0.86, 0, 7); c.fill(); }); c.restore();
+      const g = c.createRadialGradient(0, 0, 0, 0, 0, R0 * 0.85); g.addColorStop(0, '#1a1a26'); g.addColorStop(0.7, '#000000'); g.addColorStop(1, '#2a2a3a'); c.fillStyle = g; c.beginPath(); c.arc(gl, 0, R0 * 0.8, 0, 7); c.fill();
+      const ir = R0 * 0.38; c.fillStyle = eye; c.beginPath(); c.ellipse(gl, 0, ir, ir * (0.25 + open * 0.55), 0, 0, 7); c.fill(); c.fillStyle = '#000000'; c.beginPath(); c.ellipse(gl, 0, ir * 0.3, ir * (0.2 + open * 0.4), 0, 0, 7); c.fill(); c.fillStyle = '#ffffff'; c.fillRect(gl - ir * 0.6, -ir * 0.5, ir * 0.22, ir * 0.22);
+      c.strokeStyle = hexA('#ffffff', 0.8); c.lineWidth = cs * 0.04; for (let i = 0; i < b.max - b.hp; i++) { const a = hash(i, 29, 77) * Math.PI * 2; c.beginPath(); c.moveTo(Math.cos(a) * R0 * 0.8, Math.sin(a) * R0 * 0.8); c.lineTo(Math.cos(a + 0.25) * R0 * 0.5, Math.sin(a + 0.25) * R0 * 0.5); c.stroke(); }
     } else if (b.kind === 'titan') {
       const w = cs * 5.4, h = cs * 2.6;
       for (let i = -3; i <= 3; i++) { const px = i * cs * 0.52, ph = cs * (0.55 + (3 - Math.abs(i)) * 0.2); c.fillStyle = i % 2 ? '#bfefff' : '#8fd8ff'; c.beginPath(); c.moveTo(px - cs * 0.27, -h * 0.3); c.lineTo(px, -h * 0.3 - ph); c.lineTo(px + cs * 0.27, -h * 0.3); c.fill(); }
@@ -1389,6 +1484,9 @@
     if (e.look === 'fish') { const a = Math.atan2(e.ty - e.fy, e.tx - e.fx) || 0, wv = Math.sin(e.anim * 14) * 0.25; c.save(); c.translate(x, y); c.rotate(a); c.fillStyle = '#c0485e'; c.beginPath(); c.moveTo(-cs * 0.32, 0); c.lineTo(-cs * 0.5, -cs * 0.18 + wv * cs * 0.1); c.lineTo(-cs * 0.5, cs * 0.18 + wv * cs * 0.1); c.closePath(); c.fill();
       c.fillStyle = '#ff6a7a'; c.beginPath(); c.ellipse(0, 0, cs * 0.34, cs * 0.22, 0, 0, 7); c.fill(); c.fillStyle = '#ffd0d8'; c.beginPath(); c.ellipse(cs * 0.05, cs * 0.06, cs * 0.22, cs * 0.1, 0, 0, 7); c.fill(); c.fillStyle = '#ffffff'; for (let i = 0; i < 3; i++) c.fillRect(cs * (0.16 + i * 0.05), cs * 0.04, cs * 0.04, cs * 0.06);
       c.fillStyle = '#1a0a10'; c.beginPath(); c.arc(cs * 0.18, -cs * 0.07, cs * 0.05, 0, 7); c.fill(); c.restore(); return; }
+    if (e.look === 'gem') { const r = cs * 0.3, ph = now * 3 + e.i; c.save(); c.translate(x, y + Math.sin(ph) * cs * 0.05); c.rotate(Math.sin(ph * 0.7) * 0.3); const g = c.createRadialGradient(0, 0, 0, 0, 0, r * 2.2); g.addColorStop(0, 'rgba(224,208,255,.5)'); g.addColorStop(1, 'rgba(180,140,255,0)'); c.fillStyle = g; c.fillRect(-r * 2.2, -r * 2.2, r * 4.4, r * 4.4);
+      c.fillStyle = '#b48cff'; c.beginPath(); c.moveTo(0, -r * 1.3); c.lineTo(r * 0.78, 0); c.lineTo(0, r * 1.3); c.lineTo(-r * 0.78, 0); c.closePath(); c.fill(); c.fillStyle = '#e8fbff'; c.beginPath(); c.moveTo(0, -r * 1.3); c.lineTo(r * 0.78, 0); c.lineTo(0, 0); c.closePath(); c.fill();
+      c.fillStyle = '#1a0b33'; c.fillRect(-r * 0.38, -r * 0.08, r * 0.22, r * 0.32); c.fillRect(r * 0.16, -r * 0.08, r * 0.22, r * 0.32); c.restore(); return; }
     if (e.look === 'void') { const r = cs * 0.34; c.save(); c.translate(x, y); c.strokeStyle = hexA('#ff7ae0', 0.8); c.lineWidth = cs * 0.05; c.beginPath(); c.ellipse(0, 0, r * 1.4, r * 0.45, now * 2, 0, 7); c.stroke(); c.fillStyle = '#05010f'; c.beginPath(); c.arc(0, 0, r, 0, 7); c.fill(); c.strokeStyle = hexA('#5ee7ff', 0.9); c.lineWidth = cs * 0.04; c.beginPath(); c.arc(0, 0, r, 0, 7); c.stroke();
       c.fillStyle = '#ff7ae0'; c.fillRect(-r * 0.4, -r * 0.15, r * 0.25, r * 0.25); c.fillRect(r * 0.15, -r * 0.15, r * 0.25, r * 0.25); c.restore(); return; }
     if (e.look === 'snow') { const r = cs * 0.34, rl = e.anim * 8; c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(x, y + r * 0.9, r * 0.9, r * 0.25, 0, 0, 7); c.fill(); const g = c.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r); g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#a8cde8'); c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
@@ -1540,6 +1638,8 @@
     if (G.lava) x.push(`<span class="mz-xl">${ico('lava')}Lave <b data-lv>–</b></span>`);
     if (G.o2Max) x.push('<span class="mz-xo">O₂<i><b data-o2></b></i></span>');
     if (G.grav >= 0) x.push(`<span class="mz-xg">Gravité ${'↑→↓←'[G.grav]}</span>`);
+    if (G.prisms) x.push(`<span class="mz-xp${lightOpen() ? ' ok' : ''}">${ico('prism')}${G.lit.size}/${G.prisms}</span>`);
+    if (G.hasCyc) x.push(`<span class="mz-xv" title="Murs du néant : couleur qui bloque, puis la suivante">Mur<i class="v${G.cyc} on"></i><u>›</u><i class="v${(G.cyc + 1) % 3}"></i></span>`);
     if (G.rule && G.rule.t === 'nohit') x.push('<span class="mz-xr">Sans coup</span>');
     if (G.rule && G.rule.t === 'allcoins') x.push(`<span class="mz-xr${G.exitOpen ? ' ok' : ''}">${G.exitOpen ? 'Sortie ouverte' : `Encore ${G.coinsTotal - G.got} pièces`}</span>`);
     const xh = x.join(''); if (H.xtra && H.xtra._h !== xh) { H.xtra._h = xh; H.xtra.innerHTML = xh; }
@@ -1621,7 +1721,7 @@
       if (G.chests) { C.ch = C.ch || {}; const was = C.ch[key] || 0; if (G.chests > was) { const b = (G.chests - was) * CHEST_COINS; d.coins += b; gains.push(['chest', `Coffre${G.chests - was > 1 ? 's' : ''} : +${b} pièces`]); C.ch[key] = G.chests; } }
       if (G.key && !C.key) { C.key = 1; gains.push(['key', 'Niveau secret débloqué !']); }
       if (G.relic && !C.relic) { C.relic = 1; gains.push(['relic', 'Relique ajoutée à ta collection']); }
-      if (G.boss && !C.boss) { C.boss = 1; d.coins += BOSS_COINS; gains.push(['trophy', `Trophée : ${G.boss.name} · +${BOSS_COINS} pièces`]); }
+      if (G.boss && !C.boss) { const fin = WORLDS[G.wi].id === 'finale', bc = fin ? FINAL_COINS : BOSS_COINS; C.boss = 1; d.coins += bc; gains.push(['trophy', `Trophée : ${G.boss.name} · +${bc} pièces`]); if (fin) gains.push(['relic', 'Aventure terminée : Milo a traversé les 12 mondes !']); }
       // skins débloqués en terminant un monde ou en réunissant des étoiles
       SKINS.forEach((sk) => { if ((d.owned || {})[sk.id]) return; if ((sk.world && worldDone(sk.world)) || (sk.stars && totalStars() >= sk.stars)) { (d.owned = d.owned || { classic: true })[sk.id] = true; unlocks.push(sk); } });
     }
@@ -1846,7 +1946,7 @@
     const stars = [0, 1, 2].map((k) => `<i class="${st[k] ? 'on' : ''}" style="animation-delay:${0.25 + k * 0.3}s">${MG.icon('star')}</i>`).join('');
     const lbl = objLabels(g);
     const m = modal(`<div class="gpanel mz-panel ${won ? 'win' : 'lose'}"><div class="mz-pmilo">${spriteBox(d.skin || 'classic', won ? 'win' : 'fail')}</div>
-      <h3>${won ? (g.boss ? 'Boss vaincu !' : n === 3 ? 'Parfait !' : 'Niveau terminé !') : 'Oups !'}</h3><p>${won ? `${lvLabel(g.wi, g.li)} · ${WORLDS[g.wi].short}` : (g.why || 'Milo s’est fait surprendre') + ' Réessaie !'}</p>
+      <h3>${won ? (g.boss ? (WORLDS[g.wi].id === 'finale' ? 'Victoire finale !' : 'Boss vaincu !') : n === 3 ? 'Parfait !' : 'Niveau terminé !') : 'Oups !'}</h3><p>${won ? `${lvLabel(g.wi, g.li)} · ${WORLDS[g.wi].short}` : (g.why || 'Milo s’est fait surprendre') + ' Réessaie !'}</p>
       <div class="mz-endstars">${stars}</div><div class="mz-endlbl">${lbl.map((t, k) => `<span class="${st[k] ? 'on' : ''}">${t}</span>`).join('')}</div>
       <div class="mz-sum"><div><span>Score</span><b data-count="${score}">0</b></div><div><span>Temps</span><b>${fmtT(g.time)}</b></div><div><span>Pièces</span><b>${g.got}/${g.coinsTotal}</b></div><div><span>Meilleur</span><b>${MG.fmt(best)}${newBest && won && prevBest ? ' ★' : ''}</b></div></div>
       ${unlocks.length ? `<div class="mz-unlock">${spriteBox(unlocks[0].id, 'win')}<span>Nouveau skin débloqué : <b>${unlocks[0].name}</b></span></div>` : ''}
@@ -1975,6 +2075,9 @@
   .mz-ic.hg{background:none;position:relative}.mz-ic.hg:before{content:"⌛";font-size:16px;line-height:22px}
   .mz-xo{color:#bff8ff!important;gap:6px}.mz-xo i{display:inline-block;width:64px;height:8px;border-radius:5px;background:rgba(255,255,255,.15);overflow:hidden}.mz-xo b{display:block;height:100%;width:100%;background:linear-gradient(90deg,#2ad8c4,#bff8ff);border-radius:5px;transition:width .15s linear}
   .mz-xo.low{animation:mzHot .45s ease-in-out infinite alternate}.mz-xo.low b{background:linear-gradient(90deg,#ff4f6d,#ffb0c0)}
+  .mz-xp{color:#e8fbff!important}.mz-xp .gi{stroke:#b48cff}.mz-xp.ok .gi{stroke:#ffffff}
+  .mz-xv{color:#e8e8f4!important;gap:5px!important}.mz-xv i{display:inline-block;width:11px;height:11px;opacity:.55}.mz-xv i.on{opacity:1;transform:scale(1.3);filter:drop-shadow(0 0 3px rgba(255,255,255,.9))}.mz-xv u{text-decoration:none;opacity:.6}
+  .mz-xv .v0{background:#ff3df0;border-radius:50%}.mz-xv .v1{background:#5ee7ff;clip-path:polygon(50% 0,100% 100%,0 100%)}.mz-xv .v2{background:#ffd84d;border-radius:1px}
   .mz-xg{color:#ff9de9!important}.mz-ic.iv{background:none;position:relative}.mz-ic.iv:before{content:"⇄";font-size:16px;line-height:22px;color:#ff7ae0;font-weight:900}
   .mz-xl{color:#ffd0a0!important}.mz-xl .gi{stroke:#ff7a1a}.mz-xl b{margin-left:4px}.mz-xl.hot{background:rgba(255,80,30,.35)!important;animation:mzHot .5s ease-in-out infinite alternate}
   @keyframes mzHot{to{background:rgba(255,80,30,.6)}}

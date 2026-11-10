@@ -26,7 +26,9 @@ const clone = (g) => g.map((r) => r.slice());
    3 bits gravité   orbe « G » : traversée dans la direction d, la gravité devient d ; après chaque arrêt Milo « tombe » dans ce sens
    « A » bulle d'air, « r » étoile inversée : sans effet sur les déplacements.
    2 bits rotation  engrenages « 6 7 8 9 » (direction initiale ↑ → ↓ ←) : tapis qui tournent d'un quart de tour à chaque arrêt
-   « X » fausse sortie (hors du trajet), « e » presse : sans effet sur les déplacements. */
+   « X » fausse sortie (hors du trajet), « e » presse : sans effet sur les déplacements.
+   1 bit / prisme   prisme de lumière « l » (bascule à chaque passage) ; la porte de lumière « I » s'ouvre quand TOUS sont allumés
+   2 bits cycle     murs du néant « d » / « f » / « h » : la couleur active (0, 1, 2) change à chaque arrêt ; seuls ses murs bloquent */
 function ctxOf(g) {
   const c = { plates: new Map(), frag: new Map(), gm: 0, par: 0, NM: 2 }; let b = 1;
   for (let y = 0; y < g.length; y++) for (let x = 0; x < W; x++) if (g[y][x] === 'P') { c.plates.set(id(x, y), 1 << b); c.gm |= 1 << b; b++; }
@@ -35,6 +37,8 @@ function ctxOf(g) {
   c.ice = []; for (let y = 0; y < g.length; y++) for (let x = 0; x < W; x++) if (g[y][x] === 'O') c.ice.push(id(x, y));
   c.gb = -1; if (g.some((r) => r.includes('G'))) { c.gb = b; c.gmask = 7 << b; b += 3; }
   c.rb = -1; if (g.some((r) => r.some((ch) => ch >= '6' && ch <= '9'))) { c.rb = b; c.rmask = 3 << b; b += 2; }
+  c.lc = new Map(); c.lm = 0; for (let y = 0; y < g.length; y++) for (let x = 0; x < W; x++) if (g[y][x] === 'l') { c.lc.set(id(x, y), 1 << b); c.lm |= 1 << b; b++; }
+  c.cb = -1; if (g.some((r) => r.includes('d') || r.includes('f') || r.includes('h'))) { c.cb = b; c.cmask = 3 << b; b += 2; }
   c.NM = 1 << b; return c;
 }
 function blocked(c, m, ctx, k) {
@@ -43,6 +47,8 @@ function blocked(c, m, ctx, k) {
   if (c === 'g') return !ctx.gm || (m & ctx.gm) !== ctx.gm;
   if (c === 'y') return !(m & ctx.par); if (c === 'Y') return !!(m & ctx.par);
   if (c === 'u') return !!(m & ctx.frag.get(k));
+  if (c === 'I') return !ctx.lm || (m & ctx.lm) !== ctx.lm;
+  if (c === 'd' || c === 'f' || c === 'h') return ctx.cb >= 0 && ((m >> ctx.cb) & 3) === 'dfh'.indexOf(c);
   return false;
 }
 const wall0 = (c) => c === undefined || '#agUyY'.includes(c);
@@ -64,7 +70,7 @@ function slide(g, ctx, x, y, d, m, B) {
     x = nx; y = ny; path.push([x, y]);
     if (c === 'E') return { x, y, d, m, path, exit: true };
     if (c === 'n') return { x, y, d, m, path, exit: false, B }; // neige : arrêt net
-    if (c === 'o') m ^= 1; else if (c === 'P') m |= ctx.plates.get(nk); else if (c === 'G' && ctx.gb >= 0) m = (m & ~ctx.gmask) | ((d + 1) << ctx.gb);
+    if (c === 'o') m ^= 1; else if (c === 'P') m |= ctx.plates.get(nk); else if (c === 'G' && ctx.gb >= 0) m = (m & ~ctx.gmask) | ((d + 1) << ctx.gb); else if (c === 'l') m ^= ctx.lc.get(nk);
     if (c in BOOST) d = BOOST[c];
     else if (c >= '6' && c <= '9') d = (c.charCodeAt(0) - 54 + ((m >> ctx.rb) & 3)) % 4; // engrenage : sa direction dépend de la rotation
     else if (c >= '1' && c <= '4') { const o = portalOther(g, x, y, c); if (o) { x = o[0]; y = o[1]; path.push([x, y]); } }
@@ -93,6 +99,7 @@ function solve(g, sx, sy, m0, B0) {
       else {
         let m2 = r.m;
         if (ctx.rb >= 0 && r.path.length) m2 = (m2 & ~ctx.rmask) | ((((m2 >> ctx.rb) & 3) + 1) & 3) << ctx.rb; // un arrêt : les engrenages tournent
+        if (ctx.cb >= 0 && r.path.length) { const nc = (((m2 >> ctx.cb) & 3) + 1) % 3; m2 = (m2 & ~ctx.cmask) | (nc << ctx.cb); if ('dfh'.indexOf(g[r.y][r.x]) === nc) return { bad: 'cycrest' }; } // murs du néant : jamais refermés sur Milo
         if (ctx.par && r.path.length) { m2 ^= ctx.par; const ch = g[r.y][r.x]; if (ch === 'y' || ch === 'Y') return { bad: 'parrest' }; } // un mur de grès ne doit jamais se refermer sur Milo
         const k = add(r.x, r.y, m2, r.B); if (k !== order[qi]) s.edges.push({ d, to: k, path: r.path, push: !!r.push });
       }
@@ -183,7 +190,7 @@ function makeLevel(cfg, seed) {
 function decorate(g, sol, cfg, R, sx, sy, H) {
   const ri = (a, b) => a + Math.floor(R() * (b - a + 1)), shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const at = (k) => { const [x, y] = XY(k); return g[y][x]; }, put = (gg, k, ch) => { const [x, y] = XY(k); gg[y][x] = ch; };
-  const ents = [], mech = { gates: 0, toggles: 0, hidden: 0, shift: 0, frag: 0, cps: 0, snow: 0, ice: 0, grav: 0, gears: 0 };
+  const ents = [], mech = { gates: 0, toggles: 0, hidden: 0, shift: 0, frag: 0, cps: 0, snow: 0, ice: 0, grav: 0, gears: 0, light: 0, cyc: 0 };
   if (cfg.ice && (cfg.saws || cfg.patrols || cfg.blocks)) throw new Error('blocs gelés : pas d’ennemis qui creusent des couloirs');
   const near = (k, k2, r) => { const [a, b] = XY(k), [c, d] = XY(k2); return Math.abs(a - c) + Math.abs(b - d) <= r; };
   const S = id(sx, sy); let Ek = -1; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (g[y][x] === 'E') Ek = id(x, y);
@@ -287,6 +294,29 @@ function decorate(g, sol, cfg, R, sx, sy, H) {
     }
     if (!mech.frag) return null;
   }
+  // --- prismes de lumière « l » + porte « I » : la porte doit vraiment bloquer ; tous les prismes allumés en même temps l'ouvrent
+  if (cfg.lightc) {
+    for (let t = 0; t < 80 && !mech.light; t++) {
+      const cand = shuffle([...sol.solTiles].filter(free)); if (!cand.length) break;
+      const gk = cand[0], gb = clone(g); put(gb, gk, 'I'); const s0 = solve(gb, sx, sy); if (!s0.bad || !s0.trav) continue;
+      const pick = []; for (const k of shuffle([...s0.trav].filter((k) => free(k) && k !== gk))) { if (pick.length >= cfg.lightc) break; if (pick.some((o) => near(o, k, 4))) continue; pick.push(k); }
+      if (pick.length < cfg.lightc) continue; pick.forEach((k) => put(gb, k, 'l'));
+      const s = solve(gb, sx, sy); if (!okSol(s)) continue;
+      for (let y = 0; y < H; y++) g[y] = gb[y]; sol = s; [gk, ...pick].forEach((k) => used.add(k)); mech.light = pick.length;
+    }
+    if (!mech.light) return null;
+  }
+  // --- murs du néant « d f h » : ils changent le trajet et la solution en traverse au moins un
+  if (cfg.cyc) {
+    const base = sol.sol.map((e) => e.d).join('');
+    for (let t = 0; t < 160 && !mech.cyc; t++) {
+      const gb = clone(g), tiles = shuffle([...sol.solTiles].filter(free)).slice(0, cfg.cyc); if (tiles.length < cfg.cyc) break;
+      tiles.forEach((k, i) => put(gb, k, 'dfh'[i % 3]));
+      const s = solve(gb, sx, sy); if (!okSol(s) || !onPath(s, gb, 'dfh') || s.sol.map((e) => e.d).join('') === base) continue;
+      for (let y = 0; y < H; y++) g[y] = gb[y]; sol = s; tiles.forEach((k) => used.add(k)); mech.cyc = tiles.length;
+    }
+    if (!mech.cyc) return null;
+  }
   // --- neige « n » : Milo s'y arrête net ; elle doit compter dans le trajet
   if (cfg.snow) {
     for (let t = 0; t < 120 && !mech.snow; t++) {
@@ -348,7 +378,7 @@ function decorate(g, sol, cfg, R, sx, sy, H) {
   // --- pièges temporisés, segments, ennemis (règles d'origine) ; « i » : piège caché (Forêt)
   const onSol = shuffle([...sol.solTiles].filter(free));
   for (const [ch, n0] of [['x', cfg.spikes || 0], ['z', cfg.elec || 0], ['k', cfg.blink || 0], ['i', cfg.hidden || 0], ['j', cfg.geysers || 0], ['e', cfg.presses || 0]]) { let n = n0; for (const k of onSol) { if (!n) break; if (used.has(k) || at(k) !== ' ') continue; put(g, k, ch); used.add(k); n--; } }
-  const passCh = (c) => c !== undefined && c !== '#' && !(c >= '1' && c <= '4') && !'DEgabHPoKQFuUyYLwnOGrAX6789'.includes(c);
+  const passCh = (c) => c !== undefined && c !== '#' && !(c >= '1' && c <= '4') && !'DEgabHPoKQFuUyYLwnOGrAX6789lIdfh'.includes(c);
   const run = (k, axis) => { const [x, y] = XY(k), [dx, dy] = axis ? [0, 1] : [1, 0]; let a = 0, b = 0; const okc = (xx, yy) => passCh(g[yy] && g[yy][xx]);
     while (okc(x - dx * (a + 1), y - dy * (a + 1))) a++; while (okc(x + dx * (b + 1), y + dy * (b + 1))) b++;
     const cells = []; for (let i = -a; i <= b; i++) cells.push(id(x + dx * i, y + dy * i)); return cells; };
@@ -431,7 +461,7 @@ function decorate(g, sol, cfg, R, sx, sy, H) {
   const fin = solve(g, sx, sy); if (!okSol(fin)) return null;
   if (cfg.scc && !fin.scc) return null;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (g[y][x] === 'F' && !cpSafe(g, sx, sy, id(x, y))) return null;
-  const tiles = fin.sol.reduce((n, e) => n + e.path.length, 0), hz = ents.length + (cfg.spikes || 0) + (cfg.elec || 0) + (cfg.blink || 0) + (cfg.hidden || 0) + (cfg.geysers || 0) + (cfg.presses || 0) + (cfg.doors || 0) + (cfg.plats || 0) + mech.gates + mech.toggles + mech.shift * 0.5 + mech.frag * 0.5 + mech.ice;
+  const tiles = fin.sol.reduce((n, e) => n + e.path.length, 0), hz = ents.length + (cfg.spikes || 0) + (cfg.elec || 0) + (cfg.blink || 0) + (cfg.hidden || 0) + (cfg.geysers || 0) + (cfg.presses || 0) + (cfg.doors || 0) + (cfg.plats || 0) + mech.gates + mech.toggles + mech.shift * 0.5 + mech.frag * 0.5 + mech.ice + mech.light * 0.5 + mech.cyc * 0.4;
   const par = Math.round((fin.sol.length * 0.75 + tiles / 12 + hz * 0.9 + 3) * (cfg.dark ? 1.15 : 1));
   const lv = { h: H, rows: g.map((r) => r.join('')), ents, coins, moves: fin.sol.length, par, sol: fin.sol.map((e) => e.d).join('') };
   if (cfg.dark) lv.dark = cfg.dark; if (cfg.o2) lv.o2 = cfg.o2;
@@ -452,7 +482,7 @@ function quality(lv, s, cfg, mech) {
   let decisions = 0; s.order.forEach((k) => { const d = new Set(s.states.get(k).edges.map((e) => e.to)); if (d.size >= 3) decisions++; });
   let turns = 0; for (let i = 1; i < lv.sol.length; i++) if (lv.sol[i] !== lv.sol[i - 1]) turns++;
   const target = (cfg.minMoves + cfg.maxMoves) / 2, horiz = [...lv.sol].filter((c) => c === '1' || c === '3').length;
-  return +(decisions * 2 + Math.min(s.order.length, 90) * 0.25 + turns * 0.5 + horiz * 0.4 - Math.abs(lv.moves - target) * 1.2 + (mech.gates + mech.toggles + (mech.shift ? 1 : 0) + (mech.frag ? 1 : 0) + (mech.snow ? 1 : 0) + mech.ice + mech.grav + (mech.gears ? 1 : 0)) * 2).toFixed(2);
+  return +(decisions * 2 + Math.min(s.order.length, 90) * 0.25 + turns * 0.5 + horiz * 0.4 - Math.abs(lv.moves - target) * 1.2 + (mech.gates + mech.toggles + (mech.shift ? 1 : 0) + (mech.frag ? 1 : 0) + (mech.snow ? 1 : 0) + mech.ice + mech.grav + (mech.gears ? 1 : 0) + (mech.light ? 1 : 0) + (mech.cyc ? 1 : 0)) * 2).toFixed(2);
 }
 function best(cfg, seed, n) {
   let top = null;
@@ -774,6 +804,60 @@ const CHATEAU = {
   secret: { name: 'La crypte royale', h: 54, up: 6, minMoves: 12, maxMoves: 21, branches: 8, rooms: 0.45, coinRate: 1, cp: 1, chest: 2, relic: true, ghosts: 1, fakes: 2, arrows: 2, esp: 3, obj: [{ t: 'relic' }, { t: 'allcoins' }], tip: 'Niveau secret : une relique se cache derrière un mur fissuré.' }
 };
 
+/* ---------- Contenu des mondes 11 et 12 (palier légendaire) ---------- */
+const CRISTAUX = {
+  main: [
+    { h: 60, up: 7, minMoves: 15, maxMoves: 25, branches: 8, rooms: 0.3, cp: 2, bonus: ['B'], lightc: 2, toggles: { sw: 1, bar: 2 }, spikes: 3, lasers: 1, esp: 3.1, obj: [{ t: 'coins', p: 0.7 }, T_TIME], tip: 'Nouveau : allume tous les prismes pour ouvrir la porte de lumière. Repasser sur un prisme l’éteint !' },
+    { h: 60, up: 7, minMoves: 15, maxMoves: 25, branches: 8, rooms: 0.3, cp: 2, bonus: ['M'], lightc: 2, snow: 2, lasers: 2, blink: 3, esp: 3.1, crystals: 3, obj: [{ t: 'crystals' }, T_TIME], tip: 'La neige arrête Milo net : pratique pour viser un prisme sans repasser dessus.' },
+    { h: 62, up: 7, minMoves: 15, maxMoves: 26, branches: 8, rooms: 0.3, cp: 2, bonus: ['B', 'M'], lightc: 2, frag: 2, spikes: 3, ghosts: 1, esp: 3.2, key: true, obj: [{ t: 'key' }, T_TIME], tip: 'Un mur fissuré cache la clé du niveau secret.' },
+    { h: 62, up: 7, minMoves: 16, maxMoves: 26, branches: 9, rooms: 0.3, cp: 2, bonus: ['B'], lightc: 2, gates: 1, plates: 2, arrows: 2, spikes: 3, esp: 3.2, crystals: 3, chest: 1, obj: [{ t: 'crystals' }, T_TIME], tip: 'Sceaux et prismes : la grille et la porte de lumière gardent le même couloir.' },
+    { h: 62, up: 7, minMoves: 16, maxMoves: 26, branches: 9, rooms: 0.3, cp: 2, bonus: ['M'], lightc: 2, shift: 2, arrows: 2, lasers: 2, esp: 3.2, obj: [{ t: 'nohit' }, T_TIME] },
+    { h: 64, up: 7, minMoves: 16, maxMoves: 27, branches: 9, rooms: 0.3, cp: 2, bonus: ['B', 'M'], lightc: 3, ice: 1, lasers: 2, spikes: 2, esp: 3.3, crystals: 3, obj: [{ t: 'crystals' }, T_TIME] },
+    { h: 64, up: 7, minMoves: 16, maxMoves: 27, branches: 9, rooms: 0.3, cp: 2, bonus: ['B'], lightc: 2, gears: 2, presses: 4, esp: 3.3, obj: [{ t: 'coins', p: 0.7 }, T_TIME] },
+    { h: 64, up: 7, minMoves: 16, maxMoves: 27, branches: 9, rooms: 0.3, cp: 2, bonus: ['M'], dark: 3.8, flies: 2, lightc: 2, portals: 2, hidden: 3, esp: 3.3, chest: 1, crystals: 3, obj: [{ t: 'crystals' }, T_TIME], tip: 'Sanctuaire plongé dans le noir : les lucioles agrandissent ta lumière.' },
+    { h: 66, up: 7, minMoves: 17, maxMoves: 28, branches: 10, rooms: 0.3, cp: 2, bonus: ['B', 'M'], lightc: 3, toggles: { sw: 1, bar: 3 }, ghosts: 2, esp: 3.4, obj: [{ t: 'nobonus' }, T_TIME] },
+    { h: 66, up: 7, minMoves: 17, maxMoves: 28, branches: 10, rooms: 0.3, cp: 2, bonus: ['B'], lightc: 2, grav: 1, blink: 4, lasers: 2, esp: 3.4, crystals: 3, obj: [{ t: 'crystals' }, T_TIME] },
+    { h: 66, up: 7, minMoves: 17, maxMoves: 28, branches: 10, rooms: 0.3, cp: 2, bonus: ['M'], lightc: 3, snow: 2, frag: 2, spikes: 4, esp: 3.4, obj: [{ t: 'nohit' }, T_TIME] },
+    { h: 68, up: 7, minMoves: 17, maxMoves: 29, branches: 10, rooms: 0.3, cp: 2, bonus: ['B', 'M'], lightc: 3, shift: 2, presses: 5, chasers: 1, esp: 3.5, crystals: 3, chest: 1, obj: [{ t: 'crystals' }, T_TIME] },
+    { h: 68, up: 7, minMoves: 18, maxMoves: 29, branches: 10, rooms: 0.3, cp: 2, bonus: ['B'], lightc: 3, ice: 2, snow: 2, lasers: 2, esp: 3.5, obj: [{ t: 'coins', p: 0.75 }, T_TIME] },
+    { h: 70, up: 7, minMoves: 18, maxMoves: 30, branches: 11, rooms: 0.3, cp: 2, bonus: ['M'], lightc: 3, gears: 2, toggles: { sw: 1, bar: 3 }, ghosts: 2, presses: 4, esp: 3.6, crystals: 3, obj: [{ t: 'crystals' }, { t: 'nohit' }] }
+  ],
+  boss: arena(['###########', '###########', '###########', '#.........#', '#...#.#...#', '#....#....#', '##.......##', '#...#.#...#', '#.........#', '#....#....#', '#..#...#..#', '##.......##', '#..#...#..#', '#....#....#', '#.##...##.#', '#....S....#', '###########'],
+    { kind: 'prism', name: 'Le Gardien des cristaux', hp: 6, par: 95, targets: [[9, 3], [1, 15], [4, 8], [6, 13], [2, 6], [8, 10]] }),
+  defis: [
+    { name: 'Course de lumière', rule: { t: 'timer' }, h: 56, up: 7, minMoves: 14, maxMoves: 22, branches: 5, rooms: 0.2, bonus: ['V'], lightc: 2, boosters: 3, spikes: 2, esp: 3.2, obj: [T_TIME, { t: 'time', k: 0.8 }], tip: 'Défi : allume les prismes et file vers la sortie avant la fin du chrono.' },
+    { name: 'Cristal sans faille', rule: { t: 'nohit' }, h: 58, up: 7, minMoves: 14, maxMoves: 23, branches: 6, rooms: 0.3, bonus: ['M'], lightc: 2, lasers: 4, ghosts: 2, esp: 3.3, obj: [{ t: 'coins', p: 0.7 }, T_TIME], tip: 'Défi : un seul coup et c’est fini (pas de cœurs, pas de bouclier).' },
+    { name: 'Trésor scintillant', rule: { t: 'allcoins' }, h: 50, up: 6, minMoves: 11, maxMoves: 19, branches: 7, rooms: 0.35, scc: true, cp: 1, snow: 2, blink: 3, esp: 3, obj: [T_TIME, { t: 'nohit' }], tip: 'Défi : la sortie reste fermée tant qu’il reste des pièces.' }
+  ],
+  secret: { name: 'La grotte aux mille prismes', h: 54, up: 6, minMoves: 12, maxMoves: 21, branches: 8, rooms: 0.45, coinRate: 1, cp: 1, chest: 2, relic: true, lightc: 2, snow: 1, spikes: 2, esp: 3, obj: [{ t: 'relic' }, { t: 'allcoins' }], tip: 'Niveau secret : une relique se cache derrière un mur fissuré.' }
+};
+const FINALE = {
+  main: [
+    { h: 60, up: 7, minMoves: 15, maxMoves: 25, branches: 8, rooms: 0.3, cp: 2, bonus: ['B'], cyc: 4, spikes: 3, lasers: 1, esp: 3.1, obj: [{ t: 'coins', p: 0.7 }, T_TIME], tip: 'Nouveau : murs du néant ! À chaque arrêt, la couleur active change : seuls les murs de cette couleur bloquent.' },
+    { h: 60, up: 7, minMoves: 15, maxMoves: 25, branches: 8, rooms: 0.3, cp: 2, bonus: ['M'], cyc: 4, lightc: 2, spikes: 3, esp: 3.1, crystals: 3, obj: [{ t: 'crystals' }, T_TIME], tip: 'Le voyant en haut montre la couleur qui bloque, puis la suivante : anticipe avant de te lancer.' },
+    { h: 62, up: 7, minMoves: 15, maxMoves: 26, branches: 8, rooms: 0.3, cp: 2, bonus: ['B', 'M'], cyc: 4, portals: 2, ghosts: 1, spikes: 2, esp: 3.2, key: true, obj: [{ t: 'key' }, T_TIME], tip: 'Un mur fissuré cache la clé du niveau secret.' },
+    { h: 62, up: 7, minMoves: 16, maxMoves: 26, branches: 9, rooms: 0.3, cp: 2, bonus: ['B'], cyc: 4, grav: 1, lasers: 2, blink: 3, esp: 3.2, crystals: 3, chest: 1, obj: [{ t: 'crystals' }, T_TIME] },
+    { h: 62, up: 7, minMoves: 16, maxMoves: 26, branches: 9, rooms: 0.3, cp: 2, bonus: ['M'], cyc: 5, frag: 2, spikes: 3, arrows: 2, esp: 3.2, obj: [{ t: 'nohit' }, T_TIME] },
+    { h: 64, up: 7, minMoves: 16, maxMoves: 27, branches: 9, rooms: 0.3, cp: 2, bonus: ['B', 'M'], cyc: 4, gears: 2, presses: 3, esp: 3.3, crystals: 3, obj: [{ t: 'crystals' }, T_TIME] },
+    { h: 64, up: 7, minMoves: 16, maxMoves: 27, branches: 9, rooms: 0.3, cp: 2, bonus: ['B'], cyc: 5, ice: 1, lasers: 2, esp: 3.3, obj: [{ t: 'coins', p: 0.7 }, T_TIME] },
+    { h: 64, up: 7, minMoves: 16, maxMoves: 27, branches: 9, rooms: 0.3, cp: 2, bonus: ['M'], cyc: 4, shift: 2, arrows: 2, ghosts: 1, esp: 3.3, chest: 1, crystals: 3, obj: [{ t: 'crystals' }, T_TIME] },
+    { h: 66, up: 7, minMoves: 17, maxMoves: 28, branches: 10, rooms: 0.3, cp: 2, bonus: ['B', 'M'], cyc: 5, toggles: { sw: 1, bar: 3 }, ghosts: 2, esp: 3.4, obj: [{ t: 'nobonus' }, T_TIME] },
+    { h: 66, up: 7, minMoves: 17, maxMoves: 28, branches: 10, rooms: 0.3, cp: 2, lava: LV(0.75), bonus: ['B'], cyc: 5, spikes: 2, esp: 3.4, obj: [{ t: 'coins', p: 0.6 }, T_TIME], tip: 'La lave monte… et les murs changent à chaque arrêt. Garde ton calme.' },
+    { h: 66, up: 7, minMoves: 17, maxMoves: 28, branches: 10, rooms: 0.3, cp: 2, o2: 22, extraBubbles: 2, boosters: 2, bonus: ['M'], cyc: 5, esp: 3.4, crystals: 3, obj: [{ t: 'crystals' }, T_TIME] },
+    { h: 68, up: 7, minMoves: 17, maxMoves: 29, branches: 10, rooms: 0.3, cp: 2, bonus: ['B', 'M'], cyc: 5, inv: 2, lasers: 3, esp: 3.5, crystals: 3, chest: 1, obj: [{ t: 'crystals' }, T_TIME] },
+    { h: 68, up: 7, minMoves: 18, maxMoves: 29, branches: 10, rooms: 0.3, cp: 2, bonus: ['B'], cyc: 6, lightc: 3, snow: 2, esp: 3.5, obj: [{ t: 'coins', p: 0.75 }, T_TIME] },
+    { h: 70, up: 7, minMoves: 18, maxMoves: 30, branches: 11, rooms: 0.3, cp: 2, bonus: ['M'], cyc: 6, grav: 1, portals: 1, presses: 5, ghosts: 2, esp: 3.6, crystals: 3, obj: [{ t: 'crystals' }, { t: 'nohit' }] }
+  ],
+  boss: arena(['###########', '###########', '###########', '#.........#', '#..#......#', '##......#.#', '#..#......#', '#...#.....#', '#........##', '##........#', '#.#.......#', '##.....#.##', '#..#......#', '#.........#', '#.#.....#.#', '#....S....#', '###########'],
+    { kind: 'nexus', name: 'Le Cœur du Néant', hp: 9, par: 140, flood: 2, targets: [[9, 3], [1, 15], [4, 6], [9, 12], [1, 7], [6, 11], [8, 6], [3, 10], [1, 3]] }),
+  defis: [
+    { name: 'Fuite du néant', rule: { t: 'timer' }, h: 56, up: 7, minMoves: 14, maxMoves: 22, branches: 5, rooms: 0.2, bonus: ['V'], cyc: 4, boosters: 3, spikes: 2, esp: 3.2, obj: [T_TIME, { t: 'time', k: 0.8 }], tip: 'Défi : atteins la sortie avant la fin du chrono.' },
+    { name: 'Le vide parfait', rule: { t: 'nohit' }, h: 58, up: 7, minMoves: 14, maxMoves: 23, branches: 6, rooms: 0.3, bonus: ['M'], cyc: 5, lasers: 3, ghosts: 2, esp: 3.3, obj: [{ t: 'coins', p: 0.7 }, T_TIME], tip: 'Défi : un seul coup et c’est fini (pas de cœurs, pas de bouclier).' },
+    { name: 'Fragments d’univers', rule: { t: 'allcoins' }, h: 50, up: 6, minMoves: 11, maxMoves: 19, branches: 7, rooms: 0.35, scc: true, cp: 1, cyc: 4, blink: 3, esp: 3, obj: [T_TIME, { t: 'nohit' }], tip: 'Défi : la sortie reste fermée tant qu’il reste des pièces.' }
+  ],
+  secret: { name: 'L’origine', h: 54, up: 6, minMoves: 12, maxMoves: 21, branches: 8, rooms: 0.45, coinRate: 1, cp: 1, chest: 2, relic: true, cyc: 4, lightc: 2, spikes: 2, esp: 3, obj: [{ t: 'relic' }, { t: 'allcoins' }], tip: 'Niveau secret : une relique se cache derrière un mur fissuré.' }
+};
+
 function build(cfg, seed, n) {
   const lv = best(cfg, seed, n);
   delete lv._q; lv.obj = cfg.obj; if (cfg.tip) lv.tip = cfg.tip; if (cfg.rule) lv.rule = cfg.rule; if (cfg.name) lv.name = cfg.name;
@@ -783,7 +867,7 @@ function build(cfg, seed, n) {
 // mondes déjà publiés : conservés (sauf ONLY=…) ; LEG = nombre de niveaux d'origine avant les niveaux générés
 const OUT = process.argv[2] || 'maze-levels-v2.js', N = +(process.env.CAND || 8), ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
 let prev = {}; try { global.window = {}; require(require('path').resolve(OUT)); prev = global.window.MILO_MAZE_EXTRA || {}; } catch (e) { prev = {}; }
-const WORLDS_GEN = [['ruines', RUINES, 5000, 6], ['cyber', CYBER, 7000, 6], ['foret', FORET, 9000, 0], ['sables', SABLES, 11000, 6], ['glace', GLACE, 13000, 0], ['volcan', VOLCAN, 15000, 0], ['atlantide', ATLANTIDE, 17000, 0], ['cosmos', COSMOS, 19000, 6], ['usine', USINE, 21000, 0], ['chateau', CHATEAU, 23000, 0]];
+const WORLDS_GEN = [['ruines', RUINES, 5000, 6], ['cyber', CYBER, 7000, 6], ['foret', FORET, 9000, 0], ['sables', SABLES, 11000, 6], ['glace', GLACE, 13000, 0], ['volcan', VOLCAN, 15000, 0], ['atlantide', ATLANTIDE, 17000, 0], ['cosmos', COSMOS, 19000, 6], ['usine', USINE, 21000, 0], ['chateau', CHATEAU, 23000, 0], ['cristaux', CRISTAUX, 25000, 0], ['finale', FINALE, 27000, 0]];
 const out = {};
 for (const [wid, W2, base, LEG] of WORLDS_GEN) {
   if (ONLY.length ? !ONLY.includes(wid) : prev[wid]) { if (prev[wid]) out[wid] = prev[wid]; process.stderr.write(`${wid} : conservé\n`); continue; }
@@ -801,6 +885,7 @@ const js = `/* Milo Maze — contenu V2 (tools/maze/gen2.js) : niveaux des monde
                      n neige (arrêt net) · O bloc gelé (se pousse) · w plateforme de basalte (temporisée) · j geyser
                      A bulle d'air · G orbe de gravité · r étoile inversée · 1-4 portails · ^ > v < courants (Atlantide)
                      6 7 8 9 engrenages (tournent à chaque arrêt) · e presse · X fausse sortie
+                     l prisme de lumière · I porte de lumière (tous les prismes allumés) · d f h murs du néant (couleur active : change à chaque arrêt)
    Entités en plus : chaser (robot pisteur), ghost (fantôme qui traverse les murs).
    Entités : arrow (piège à flèches). Niveau « dark » : obscurité (rayon de lumière en cases). « lava » : lave montante {v cases/s, g délai}. « o2 » : oxygène (s).
    Les niveaux de boss (boss:{…}) sont des arènes conçues à la main et vérifiées. */
