@@ -19,7 +19,7 @@ const { chromium, devices } = require('playwright'); const srv = require('./srv'
       let k = 0; const t0 = performance.now();
       while (k < dirs.length && performance.now() - t0 < 40000) { const g = D.G(); if (!g || g.state === 'win' || g.state === 'dead') break; if (!g.milo.moving && !g.paused) { D.launch(+dirs[k]); k++; } await wait(35); }
       for (let i = 0; i < 80 && D.G() && D.G().state !== 'win'; i++) await wait(50);
-      const g = D.G(); const r = { lv: `${D.WORLDS[wi].id}:${li}`, state: g.state, key: g.key, relic: g.relic, cr: `${g.crystals}/${g.crTotal}`, chests: g.chests, lockedAtStart, hearts: g.maxHearts, cp: g.cpOn.size, sceaux: g.platesN ? `${g.platesOn}/${g.platesN}` : '', fall: g.grid.flat().filter((c) => c === "U").length, par: g.hasPar ? g.par : "", ice: g.ice.length ? g.ice.map((b) => b.x + "," + b.y).join(" ") : "", lava: g.lava ? +g.lavaY.toFixed(1) : "", grav: g.grav, o2: g.o2Max ? +g.o2.toFixed(1) : "", t: +g.time.toFixed(1) };
+      const g = D.G(); const r = { lv: `${D.WORLDS[wi].id}:${li}`, state: g.state, key: g.key, relic: g.relic, cr: `${g.crystals}/${g.crTotal}`, chests: g.chests, lockedAtStart, hearts: g.maxHearts, cp: g.cpOn.size, sceaux: g.platesN ? `${g.platesOn}/${g.platesN}` : '', fall: g.grid.flat().filter((c) => c === "U").length, par: g.hasPar ? g.par : "", ice: g.ice.length ? g.ice.map((b) => b.x + "," + b.y).join(" ") : "", lava: g.lava ? +g.lavaY.toFixed(1) : "", grav: g.grav, rot: g.hasRot ? g.rot : "", fakes: g.grid.flat().filter((c) => c === "X").length, o2: g.o2Max ? +g.o2.toFixed(1) : "", t: +g.time.toFixed(1) };
       await wait(1400); return r;
     };
     for (const wi of WL) {

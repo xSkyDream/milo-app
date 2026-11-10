@@ -6,7 +6,7 @@
   Les mondes déjà présents dans le fichier sont CONSERVÉS (les joueurs y ont leur progression) ; seuls les
   mondes absents sont générés. `ONLY=foret,sables` force la régénération de ces mondes.
   Solveur à états (position + masque : interrupteur, une case par plaque, parité des murs de grès, une case par
-  dalle fragile + positions des blocs gelés + gravité ; neige = arrêt net ; lave montante et bulles d'air
+  dalle fragile + positions des blocs gelés + gravité + rotation des engrenages ; neige = arrêt net ; lave montante et bulles d'air
   calculées sur la solution pour un joueur posé) : mécanismes obligatoires, secrets optionnels, aucune impasse, niveaux « toutes les pièces »
   vérifiés, checkpoints sûrs (depuis un drapeau, la sortie reste accessible quel que soit l'état du niveau).
   Arènes de boss validées (chaque cible atteignable depuis chaque arrêt, chaque arrêt peut esquiver sa ligne et
