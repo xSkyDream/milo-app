@@ -9,7 +9,8 @@ const { chromium, devices } = require('playwright'); const srv = require('./srv'
   await p.goto('http://localhost:8790/', { waitUntil: 'networkidle' });
   await p.evaluate(() => { const d = MiloGames.data('maze'); Object.keys(d).forEach((k) => delete d[k]); MiloGames.open('maze'); });
   await p.waitForTimeout(600);
-  const res = await p.evaluate(async () => {
+  const WL = (process.env.WORLDS || '0,1,2,3').split(',').map(Number);
+  const res = await p.evaluate(async (WL) => {
     const D = MiloGames.cur.g._debug, out = [], wait = (ms) => new Promise((r) => setTimeout(r, ms));
     const play = async (wi, li, dirs, opts = {}) => {
       D.start(wi, li); await wait(150); const G = D.G(); D.setInv(true);
@@ -18,10 +19,10 @@ const { chromium, devices } = require('playwright'); const srv = require('./srv'
       let k = 0; const t0 = performance.now();
       while (k < dirs.length && performance.now() - t0 < 40000) { const g = D.G(); if (!g || g.state === 'win' || g.state === 'dead') break; if (!g.milo.moving && !g.paused) { D.launch(+dirs[k]); k++; } await wait(35); }
       for (let i = 0; i < 80 && D.G() && D.G().state !== 'win'; i++) await wait(50);
-      const g = D.G(); const r = { lv: `${D.WORLDS[wi].id}:${li}`, state: g.state, key: g.key, relic: g.relic, cr: `${g.crystals}/${g.crTotal}`, chests: g.chests, lockedAtStart, boss: g.boss ? g.boss.hp : null, t: +g.time.toFixed(1) };
+      const g = D.G(); const r = { lv: `${D.WORLDS[wi].id}:${li}`, state: g.state, key: g.key, relic: g.relic, cr: `${g.crystals}/${g.crTotal}`, chests: g.chests, lockedAtStart, hearts: g.maxHearts, cp: g.cpOn.size, sceaux: g.platesN ? `${g.platesOn}/${g.platesN}` : '', fall: g.grid.flat().filter((c) => c === 'U').length, par: g.hasPar ? g.par : '', t: +g.time.toFixed(1) };
       await wait(1400); return r;
     };
-    for (const wi of [0, 1]) {
+    for (const wi of WL) {
       const L = D.CONTENT[wi];
       for (let li = 0; li < L.length; li++) {
         const lv = L[li];
@@ -36,8 +37,8 @@ const { chromium, devices } = require('playwright'); const srv = require('./srv'
       out.push(await play(wi, 's', D.levelAt(wi, 's').qsol, { allcoins: false }));
     }
     const d = MiloGames.data('maze');
-    return { out, col: d.col, coins: d.coins, unl: { ruinesS: D.unlocked(0, 's'), cyberS: D.unlocked(1, 's'), ruinesD3: D.unlocked(0, 'd2'), cyberOpen: D.worldOpen(1), sablesOpen: D.worldOpen(3) }, pct: [D.worldPct(0), D.worldPct(1)] };
-  });
+    return { out, col: d.col, coins: d.coins, unl: Object.fromEntries(WL.flatMap((wi) => [[D.WORLDS[wi].id + 'Secret', D.unlocked(wi, 's')], [D.WORLDS[wi].id + 'Défi3', D.unlocked(wi, 'd2')], [D.WORLDS[wi].id + 'Ouvert', D.worldOpen(wi)]])), pct: WL.map((wi) => D.worldPct(wi)) };
+  }, WL);
   res.out.forEach((r) => console.log(JSON.stringify(r)));
   console.log('collection', JSON.stringify(res.col)); console.log('pièces', res.coins, 'déblocages', JSON.stringify(res.unl), 'complétion', res.pct);
   console.log('errors', errs);
