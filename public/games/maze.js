@@ -3,9 +3,11 @@
    - Moteur par cases (logique) + rendu continu (accélération, impact)
    - Environnement pixel art néon pré-rendu par blocs, Milo en sprites 3D
    - Pièges temporisés, lasers, scies, patrouilles, poursuivants, portails…
-   - 4 mondes × 6 niveaux (games/maze-levels.js), 6 skins, boutique,
+   - 4 mondes × 6 niveaux (games/maze-levels.js), 18 personnages, boutique,
      musique synthétisée par monde, sauvegarde via api.data
-   Remplacer un visuel : assets/games/maze/skin_<id>.webp (11 états × 150 px)
+   Personnages : assets/games/maze/mk_<id>.webp = planche 192 px [repos, n images de course, victoire]
+                 assets/games/maze/mp_<id>.webp = portrait 320 px (cartes, menus)
+   (toujours un NOUVEAU nom de fichier si on remplace une image : cache iPhone d'un an)
    ===================================================================== */
 (function () {
   'use strict';
@@ -34,13 +36,27 @@
   ];
   const STATES = ['idle', 'prep', 'run', 'accel', 'jump', 'collect', 'shield', 'teleport', 'hurt', 'win', 'fail'];
   const ST = {}; STATES.forEach((s, i) => (ST[s] = i));
+  // n = nombre d'images de course dans la planche ; rar = rareté affichée en boutique
+  const RAR = { c: 'Commun', r: 'Rare', e: 'Épique', l: 'Légendaire' };
   const SKINS = [
-    { id: 'classic', name: 'Classique', desc: 'Blanc et lavande', price: 0, trail: { a: '#e9dcff', b: '#a77cff', p: '#ffffff', kind: 'spark' } },
-    { id: 'neon', name: 'Néon', desc: 'Contours violets et cyan', price: 350, world: 0, trail: { a: '#7af6ff', b: '#a855f7', p: '#5ef2ff', kind: 'bolt' } },
-    { id: 'glacier', name: 'Glacier', desc: 'Nuances bleues glacées', price: 600, world: 1, trail: { a: '#e3f6ff', b: '#6cc6ff', p: '#ffffff', kind: 'snow' } },
-    { id: 'galaxy', name: 'Galaxie', desc: 'Violet cosmique étoilé', price: 900, world: 2, trail: { a: '#e8b8ff', b: '#7b2cff', p: '#fff3b0', kind: 'star' } },
-    { id: 'sun', name: 'Soleil', desc: 'Nuances dorées et orangées', price: 1300, world: 3, trail: { a: '#fff1a8', b: '#ff8a1f', p: '#ffd84d', kind: 'ember' } },
-    { id: 'prism', name: 'Prisme', desc: 'Dégradés multicolores', price: 2000, stars: 54, trail: { a: '#ffffff', b: '#ff7ae0', p: '#ffffff', kind: 'rainbow' } }
+    { id: 'classic', name: 'Classique', desc: 'Le Milo d’origine, lanterne à la main', price: 0, rar: 'c', n: 7, trail: { a: '#e9dcff', b: '#a77cff', p: '#ffffff', kind: 'spark' } },
+    { id: 'pastel', name: 'Pastel', desc: 'Douceur lavande et boucle cristal', price: 300, rar: 'c', n: 7, trail: { a: '#f1e6ff', b: '#c08bff', p: '#ffe9a8', kind: 'spark' } },
+    { id: 'neon', name: 'Néon', desc: 'Contours bleu électrique', price: 350, world: 0, rar: 'c', n: 8, trail: { a: '#7af6ff', b: '#a855f7', p: '#5ef2ff', kind: 'bolt' } },
+    { id: 'aurora', name: 'Aurore', desc: 'Une aurore boréale sur la tête', price: 450, rar: 'c', n: 7, trail: { a: '#8ff7e0', b: '#6a5cff', p: '#c9fff4', kind: 'spark' } },
+    { id: 'glacier', name: 'Glacier', desc: 'Taillé dans la glace', price: 600, world: 1, rar: 'r', n: 8, trail: { a: '#e3f6ff', b: '#6cc6ff', p: '#ffffff', kind: 'snow' } },
+    { id: 'polar', name: 'Polaire', desc: 'Lunettes de ski et doudoune', price: 700, rar: 'r', n: 7, trail: { a: '#eaf6ff', b: '#5aa8ff', p: '#ffffff', kind: 'snow' } },
+    { id: 'pumpkin', name: 'Citrouille', desc: 'La citrouille la plus mignonne', price: 750, rar: 'r', n: 7, trail: { a: '#ffc46b', b: '#ff7a1a', p: '#b06cff', kind: 'ember' } },
+    { id: 'cyber', name: 'Cyber', desc: 'Casque à cœur et veste lumineuse', price: 850, rar: 'r', n: 6, trail: { a: '#ff8fd8', b: '#35e0ff', p: '#ffffff', kind: 'bolt' } },
+    { id: 'galaxy', name: 'Galaxie', desc: 'Violet cosmique et anneau planétaire', price: 900, world: 2, rar: 'r', n: 8, trail: { a: '#e8b8ff', b: '#7b2cff', p: '#fff3b0', kind: 'star' } },
+    { id: 'explorer', name: 'Explorateur', desc: 'Chapeau, boussole et lanterne', price: 1100, rar: 'e', n: 7, trail: { a: '#ffe1a1', b: '#c2873f', p: '#ffd36b', kind: 'ember' } },
+    { id: 'ninja', name: 'Ninja', desc: 'Bandeau, sabre et écharpe rouge', price: 1200, stars: 24, rar: 'e', n: 7, trail: { a: '#ff6b6b', b: '#5a2a6a', p: '#ffffff', kind: 'spark' } },
+    { id: 'wizard', name: 'Sorcier', desc: 'Chapeau étoilé et bâton magique', price: 1250, rar: 'e', n: 7, trail: { a: '#e7b8ff', b: '#8a3cff', p: '#ffe066', kind: 'star' } },
+    { id: 'sun', name: 'Soleil', desc: 'Chemise à fleurs et lunettes de soleil', price: 1300, world: 3, rar: 'e', n: 8, trail: { a: '#fff1a8', b: '#ff8a1f', p: '#ffd84d', kind: 'ember' } },
+    { id: 'party', name: 'Fête', desc: 'Casque DJ et lunettes à LED', price: 1400, rar: 'e', n: 7, trail: { a: '#ff7ae0', b: '#5ef2ff', p: '#ffe066', kind: 'star' } },
+    { id: 'samurai', name: 'Samouraï', desc: 'Armure rouge et casque doré', price: 1800, stars: 64, rar: 'l', n: 7, trail: { a: '#ffd166', b: '#e0283b', p: '#ffffff', kind: 'ember' } },
+    { id: 'astro', name: 'Astronaute', desc: 'Combinaison spatiale et réacteur', price: 2000, stars: 40, rar: 'l', n: 7, trail: { a: '#bfe8ff', b: '#7b6cff', p: '#ffffff', kind: 'star' } },
+    { id: 'prism', name: 'Prisme', desc: 'Reflets holographiques', price: 2000, stars: 54, rar: 'l', n: 7, trail: { a: '#ffffff', b: '#ff7ae0', p: '#ffffff', kind: 'rainbow' } },
+    { id: 'vice', name: 'Miami', desc: 'Chemise palmiers et lunettes miroir', price: 2400, stars: 72, rar: 'l', n: 4, trail: { a: '#ff8ad8', b: '#ff9a3c', p: '#ffe066', kind: 'spark' } }
   ];
   const skinById = (id) => SKINS.find((s) => s.id === id) || SKINS[0];
   const BONUS = {
@@ -168,7 +184,7 @@
     if (UI.imgs[src]) return UI.imgs[src];
     const im = new Image(); im.decoding = 'async'; im.onload = () => { im.ok = true; }; im.src = MG.asset(src); UI.imgs[src] = im; return im;
   }
-  const skinImg = (id) => img('maze/skin_' + id + '.webp');
+  const skinImg = (id) => img('maze/mk_' + id + '.webp');
   const itemsImg = () => img('maze/items.webp');
   // petits sprites pixel art (ennemis) : rangées de caractères → couleurs
   function pixSprite(key, rows, cols) {
@@ -707,18 +723,19 @@
     c.restore();
   }
   function drawMilo(c, now) {
-    const m = G.milo, cs = UI.cs, im = skinImg(data().skin); if (!im.ok) return;
-    let pose = m.pose, ax = 0, ay = 0, rot = 0, sxs = 1, sys = 1, alpha = 1;
+    const m = G.milo, cs = UI.cs, sk = skinById(data().skin), im = skinImg(sk.id); if (!im.ok) return;
+    let pose = m.pose, ax = 0, ay = 0, rot = 0, sxs = 1, sys = 1, alpha = 1, runF = 0;
     const x = (m.px + 0.5) * cs, y = (m.py + 0.5) * cs;
     if (G.state === 'dead') {
       const t = G.endT; if (t > 0.45) { pose = 'fail'; ay = -(t - 0.45) * cs * 1.6; alpha = Math.max(0, 1 - (t - 0.45) / 1.1); rot = Math.sin(t * 6) * 0.15; } else { pose = 'hurt'; rot = Math.sin(t * 40) * 0.25 * (1 - t / 0.45); const k = 1 + Math.sin((t / 0.45) * Math.PI) * 0.25; sxs = k; sys = k; }
     } else if (G.state === 'win') { pose = 'win'; ay = -Math.abs(Math.sin(G.endT * 7)) * cs * 0.25; const k = 1 + Math.min(0.25, G.endT * 0.6); sxs = k; sys = k; }
     else if (m.moving) {
       // cycle de course en 12 phases synchronisé sur la vitesse réelle
-      const f = Math.floor(m.phase * 12) % 12, ph = (f / 12) * Math.PI * 2;
-      const st = 0.1 + 0.06 * clamp((m.sp - V0) / (VMAX - V0), 0, 1);
-      if (m.d % 2) { sxs = 1 + st; sys = 1 - st * 0.8; ay = -Math.abs(Math.sin(ph)) * cs * 0.07; rot = m.face * (0.08 + Math.sin(ph) * 0.03); }
-      else { sxs = 1 - st * 0.7; sys = 1 + st; ax = Math.sin(ph) * cs * 0.05; rot = Math.sin(ph) * 0.06 + (m.d === 0 ? -0.06 : 0.06) * m.face; }
+      // vraie course : images de la planche, cadence liée à la vitesse + léger rebond (les images portent déjà le mouvement)
+      const cyc = m.phase * 0.12, ph = (cyc % 1) * Math.PI * 4; runF = 1 + (Math.floor(cyc * sk.n) % sk.n);
+      const st = 0.03 + 0.03 * clamp((m.sp - V0) / (VMAX - V0), 0, 1);
+      if (m.d % 2) { sxs = 1 + st; sys = 1 - st * 0.8; ay = -Math.abs(Math.sin(ph)) * cs * 0.05; rot = m.face * 0.05; }
+      else { sxs = 1 - st * 0.6; sys = 1 + st; ay = -Math.abs(Math.sin(ph)) * cs * 0.03; rot = (m.d === 0 ? -0.04 : 0.04) * m.face; }
     } else {
       if (pose === 'idle' && G.state === 'ready' && UI.ptr) pose = 'prep';
       if (pose === 'idle' && G.state === 'play' && UI.ptr) pose = 'prep';
@@ -728,15 +745,25 @@
     // impact : écrasement contre le mur
     if (m.sq > 0.01 && G.state !== 'dead') { const q = Math.min(0.32, m.sq * 0.4); if (m.sqDir) { sys *= 1 - q; sxs *= 1 + q * 0.8; ay += (m.impD === 0 ? -1 : 1) * cs * q * 0.35; } else { sxs *= 1 - q; sys *= 1 + q * 0.8; ax += (m.impD === 3 ? -1 : 1) * cs * q * 0.35; } }
     if (m.invT > 0 && Math.floor(now * 20) % 2) alpha *= 0.45;
-    const S = cs * 1.62, fi = ST[pose] != null ? ST[pose] : 0;
+    // image : course / victoire (yeux plissés) / repos pour tout le reste ; le blessé est teinté en rouge
+    const S = cs * 1.62, fi = runF || (pose === 'win' || pose === 'collect' ? sk.n + 1 : 0), FS = 192;
     // ombre portée
     c.save(); c.globalAlpha = 0.25 * alpha; c.fillStyle = '#000'; c.beginPath(); c.ellipse(x, y + cs * 0.42, cs * 0.3 * sxs, cs * 0.08, 0, 0, 7); c.fill(); c.restore();
     // bulle de bouclier (en mouvement)
     if (G.bon.shield && pose !== 'shield' && G.state === 'play') { const r = cs * 0.66, p = 0.7 + 0.3 * Math.sin(now * 5); const rg = c.createRadialGradient(x, y, r * 0.6, x, y, r); rg.addColorStop(0, 'rgba(94,200,255,0)'); rg.addColorStop(0.85, `rgba(140,215,255,${0.35 * p})`); rg.addColorStop(1, `rgba(220,245,255,${0.7 * p})`); c.fillStyle = rg; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
     c.save(); c.globalAlpha = alpha; c.translate(x + ax, y + ay); c.rotate(rot); c.scale(sxs * (pose === 'fail' ? 1 : m.face), sys);
-    c.imageSmoothingEnabled = true; c.drawImage(im, fi * 150, 0, 150, 150, -S / 2, -S / 2, S, S);
+    c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high'; c.drawImage(im, fi * FS, 0, FS, FS, -S / 2, -S / 2, S, S);
+    if (pose === 'hurt') { const t = tinted(im, fi, FS); if (t) { c.globalAlpha = alpha * 0.55; c.drawImage(t, -S / 2, -S / 2, S, S); } }
     c.restore();
     if (G.bon.magnet > 0 && G.state === 'play') { c.save(); c.strokeStyle = 'rgba(255,94,122,.25)'; c.setLineDash([cs * 0.1, cs * 0.14]); c.lineDashOffset = -now * cs; c.lineWidth = cs * 0.04; c.beginPath(); c.arc(x, y, G.magnetR * cs, 0, 7); c.stroke(); c.restore(); }
+  }
+
+  // copie teintée en rouge d'une image (flash de dégât), mise en cache
+  function tinted(im, fi, FS) {
+    const k = im.src + '#' + fi; UI.tint = UI.tint || {}; if (UI.tint[k]) return UI.tint[k];
+    const cv = document.createElement('canvas'); cv.width = cv.height = FS; const x = cv.getContext('2d');
+    x.drawImage(im, fi * FS, 0, FS, FS, 0, 0, FS, FS); x.globalCompositeOperation = 'source-atop'; x.fillStyle = '#ff3355'; x.fillRect(0, 0, FS, FS);
+    return (UI.tint[k] = cv);
   }
 
   /* ---------- Boucle ---------- */
@@ -845,7 +872,10 @@
      ===================================================================== */
   function modal(html, cls) { closeModal(); const m = document.createElement('div'); m.className = 'gmodal mz-modal ' + (cls || ''); m.innerHTML = html; root.appendChild(m); return m; }
   function closeModal() { root && root.querySelectorAll('.mz-modal').forEach((m) => m.remove()); }
-  const spriteBox = (skin, state, cls) => `<span class="mz-spr ${cls || ''}" style="background-image:url(${MG.asset('maze/skin_' + skin + '.webp')});background-position:${(ST[state] / 10) * 100}% 0"></span>`;
+  // vignette : portrait net (repos) ou image de la planche (course / victoire)
+  const spriteBox = (skin, state, cls) => { const sk = skinById(skin), f = state === 'win' || state === 'collect' ? sk.n + 1 : state === 'run' ? 1 : 0;
+    return f ? `<span class="mz-spr ${cls || ''}" style="background-image:url(${MG.asset('maze/mk_' + sk.id + '.webp')});background-size:${(sk.n + 2) * 100}% 100%;background-position:${(f / (sk.n + 1)) * 100}% 0"></span>`
+      : `<span class="mz-spr ${cls || ''}" style="background-image:url(${MG.asset('maze/mp_' + sk.id + '.webp')});background-size:contain;background-position:center"></span>`; };
   const coinPill = () => `<div class="mz-wallet"><i class="mz-ic coin"></i><b>${MG.fmt(data().coins || 0)}</b></div>`;
   function topbar(back) { return `<div class="gtop mz-top">${back ? `<button class="gclose" data-mz="${back}" aria-label="Retour">${ico('back')}</button>` : ''}${coinPill()}<div class="grow"></div>${MG.soundBtn()}<button class="gclose" data-mz="exit" aria-label="Fermer Milo Maze">${MG.icon('x')}</button></div>`; }
   function screen(name, opt) {
@@ -872,7 +902,7 @@
     } else if (name === 'skins' || name === 'shop') {
       const owned = Object.assign({ classic: true }, d.owned || {}), sel = d.skin || 'classic', u = d.upg || {};
       const skinCards = SKINS.map((s) => { const own = owned[s.id], cond = s.world != null ? `ou termine le monde ${s.world + 1}` : s.stars ? `ou réunis ${s.stars} étoiles` : '';
-        return `<div class="mz-skin${own ? '' : ' locked'}${s.id === sel ? ' sel' : ''}" data-skin="${s.id}">${spriteBox(s.id, 'idle', own ? '' : 'sil')}<b>${s.name}</b><em>${s.desc}</em>
+        return `<div class="mz-skin${own ? '' : ' locked'}${s.id === sel ? ' sel' : ''}" data-skin="${s.id}"><span class="mz-rar r-${s.rar}">${RAR[s.rar]}</span>${spriteBox(s.id, 'idle', own ? '' : 'sil')}<b>${s.name}</b><em>${s.desc}</em>
           ${own ? (s.id === sel ? `<span class="mz-tag">${ico('check')}Choisi</span>` : `<button class="gbtn light sm" data-mz="pick" data-id="${s.id}">Choisir</button>`) : `<button class="gbtn sm" data-mz="buy" data-id="${s.id}"><i class="mz-ic coin"></i>${MG.fmt(s.price)}</button><small>${cond}</small>`}</div>`; }).join('');
       if (name === 'skins') el.innerHTML = `${topbar('home')}<div class="mz-in"><h2 class="mz-h">Personnages</h2>
         <div class="mz-preview">${spriteBox(sel, 'idle', 'mz-big')}<div><b>${skinById(sel).name}</b><span>${skinById(sel).desc}</span><i class="mz-trailp" style="--a:${skinById(sel).trail.a};--b:${skinById(sel).trail.b}"></i></div></div>
@@ -886,7 +916,11 @@
       el.innerHTML = `${topbar(opt && opt.back || 'home')}<div class="mz-in"><h2 class="mz-h">Paramètres</h2>${settingsHTML(s)}</div>`;
     }
     root.appendChild(el);
-    if (name === 'skins') { let i = 0; const seq = ['idle', 'prep', 'run', 'accel', 'jump', 'collect', 'shield', 'teleport', 'win']; UI.skinTimer = setInterval(() => { const b = root && root.querySelector('.mz-big'); if (!b) return; i = (i + 1) % seq.length; b.style.backgroundPosition = `${(ST[seq[i]] / 10) * 100}% 0`; }, 900); }
+    if (name === 'skins') {
+      const sk = skinById(d.skin), seq = [0, 0, 0, 0, 0, 0].concat(...[0, 1, 2].map(() => Array.from({ length: sk.n }, (_, k) => k + 1)), Array(8).fill(sk.n + 1)); let i = 0;
+      const b0 = root.querySelector('.mz-big'); if (b0) { b0.style.backgroundImage = `url(${MG.asset('maze/mk_' + sk.id + '.webp')})`; b0.style.backgroundSize = `${(sk.n + 2) * 100}% 100%`; b0.style.backgroundPosition = '0 0'; }
+      UI.skinTimer = setInterval(() => { const b = root && root.querySelector('.mz-big'); if (!b) return; i = (i + 1) % seq.length; b.style.backgroundPosition = `${(seq[i] / (sk.n + 1)) * 100}% 0`; }, 85);
+    }
   }
   function settingsHTML(s) {
     return `<div class="mz-set">
@@ -968,11 +1002,11 @@
     else if (a === 'pauseback') { closeModal(); G.paused = false; pause(); }
     else if (a === 'play') { const wi = +b.dataset.w, li = +b.dataset.l; UI.lastLv = [wi, li]; if (unlocked(wi, li)) startLevel(wi, li); }
     else if (a === 'map' || a === 'home' || a === 'skins' || a === 'shop' || a === 'settings') screen(a);
-    else if (a === 'pick') { d.skin = b.dataset.id; api.save(); screen(UI.screen); }
+    else if (a === 'pick') { d.skin = b.dataset.id; skinImg(d.skin); api.save(); screen(UI.screen); }
     else if (a === 'buy') {
       const s = skinById(b.dataset.id); if ((d.owned || {})[s.id]) return;
       if ((d.coins || 0) < s.price) { sfx('no'); toast(`Il te manque ${MG.fmt(s.price - (d.coins || 0))} pièces`); return; }
-      d.coins -= s.price; (d.owned = d.owned || { classic: true })[s.id] = true; d.skin = s.id; api.save(); sfx('buy'); try { api.fx.confetti(50); } catch (_) {} screen(UI.screen); toast(`${s.name} est à toi !`);
+      d.coins -= s.price; (d.owned = d.owned || { classic: true })[s.id] = true; d.skin = s.id; skinImg(s.id); api.save(); sfx('buy'); try { api.fx.confetti(50); } catch (_) {} screen(UI.screen); toast(`${s.name} est à toi !`);
     }
     else if (a === 'upg') {
       const g = UPGRADES.find((x) => x.id === b.dataset.id), u = (d.upg = d.upg || {}), lv = g.id === 'shields' ? 0 : u[g.id] || 0, price = g.price[Math.min(lv, g.price.length - 1)];
@@ -994,7 +1028,7 @@
       api = a; const d = api.data; d.stats = d.stats || {}; d.owned = Object.assign({ classic: true }, d.owned || {}); d.upg = d.upg || {}; d.lv = d.lv || {};
       if (d.coins == null) d.coins = 0; if (!skinById(d.skin).id || !d.owned[d.skin]) d.skin = 'classic';
       UI.lowfx = !!settings().lowfx;
-      SKINS.forEach((s) => skinImg(s.id)); itemsImg();
+      skinImg(d.skin); itemsImg();
       root = document.createElement('div'); root.className = 'mz-root';
       root.innerHTML = '<div class="mz-amb" aria-hidden="true">' + '<i></i>'.repeat(8) + '</div>';
       frame.insertBefore(root, frame.firstChild);
@@ -1110,7 +1144,9 @@
   .mz-skins{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
   .mz-skin{border-radius:20px;padding:12px 10px;background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);display:flex;flex-direction:column;align-items:center;text-align:center;gap:3px}
   .mz-skin.sel{box-shadow:inset 0 0 0 2px #a970ff,0 0 18px rgba(169,112,255,.45);background:rgba(169,112,255,.14)}
-  .mz-skin .mz-spr{width:84px;height:84px}
+  .mz-skin{position:relative}.mz-skin .mz-spr{width:84px;height:84px}
+  .mz-rar{position:absolute;top:8px;left:8px;font-size:9.5px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;padding:3px 7px;border-radius:9px;color:#fff;background:rgba(255,255,255,.14)}
+  .mz-rar.r-r{background:linear-gradient(135deg,#3aa0ff,#2f6bff)}.mz-rar.r-e{background:linear-gradient(135deg,#b45cff,#7b2cff)}.mz-rar.r-l{background:linear-gradient(135deg,#ffb020,#ff6a00);box-shadow:0 0 10px rgba(255,160,40,.5)}
   .mz-skin .mz-spr.sil{filter:brightness(0) drop-shadow(0 0 1px rgba(255,255,255,.5));opacity:.85}
   .mz-skin b{font-size:15px;font-weight:900}.mz-skin em{font-style:normal;font-size:12px;color:#cbbcff;min-height:30px}
   .mz-skin small{font-size:11px;color:#a99cf0;margin-top:2px}
