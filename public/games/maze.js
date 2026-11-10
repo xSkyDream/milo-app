@@ -20,20 +20,12 @@
      ===================================================================== */
   const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
   const BOOSTDIR = { '^': 0, '>': 1, 'v': 2, '<': 3 };
-  const WORLDS = [
-    { id: 'ruines', name: 'Les Ruines violettes', short: 'Ruines violettes', deco: 'vine',
-      pal: { bg1: '#1a0c3a', bg2: '#0b0520', wall: '#4a2696', wall2: '#5b30b0', deep: '#1c0e3e', face: '#2c1563', edge: '#c69bff', glow: '#a970ff', floor: '#100726', floor2: '#160a33', accent: '#ffd84d', mote: '#c9a8ff' },
-      music: { bpm: 80, root: 50, scale: [0, 2, 3, 5, 7, 8, 10], prog: [0, 5, 3, 4] } },
-    { id: 'temple', name: 'Le Temple néon', short: 'Temple néon', deco: 'glyph',
-      pal: { bg1: '#06173d', bg2: '#030a1f', wall: '#103e86', wall2: '#1655a8', deep: '#081a3d', face: '#0a2557', edge: '#5ef2ff', glow: '#22d3ee', floor: '#040c22', floor2: '#07122e', accent: '#ff4fd8', mote: '#7deeff' },
-      music: { bpm: 104, root: 52, scale: [0, 2, 3, 5, 7, 9, 10], prog: [0, 3, 6, 4] } },
-    { id: 'galaxie', name: 'Les Profondeurs galactiques', short: 'Profondeurs galactiques', deco: 'crystal',
-      pal: { bg1: '#1d0b45', bg2: '#08031a', wall: '#3d1c7a', wall2: '#552399', deep: '#170a36', face: '#2a1158', edge: '#ff7ae0', glow: '#e04fd0', floor: '#0c0520', floor2: '#120830', accent: '#5ee7ff', mote: '#ff9de9' },
-      music: { bpm: 90, root: 49, scale: [0, 2, 4, 6, 7, 9, 11], prog: [0, 4, 5, 3] } },
-    { id: 'soleil', name: 'Le Sanctuaire solaire', short: 'Sanctuaire solaire', deco: 'sun',
-      pal: { bg1: '#3a1606', bg2: '#140602', wall: '#a0521a', wall2: '#bd6a24', deep: '#3b1a07', face: '#6b330e', edge: '#ffd45e', glow: '#ff9d2e', floor: '#170802', floor2: '#210c04', accent: '#fff3a6', mote: '#ffc56b' },
-      music: { bpm: 112, root: 53, scale: [0, 1, 4, 5, 7, 8, 10], prog: [0, 1, 0, 6] } }
-  ];
+  // 12 mondes (games/maze-worlds.js) ; leurs niveaux viennent de games/maze-levels.js (mondes d'origine) ou de w.levels
+  const WORLDS = window.MILO_MAZE_WORLDS || [];
+  const TIERS = window.MILO_MAZE_TIERS || {};
+  const CONTENT = WORLDS.map((w) => { const src = w.legacy && LV.find((x) => x.id === w.legacy); return src ? src.levels : w.levels || []; });
+  const wIdx = (id) => WORLDS.findIndex((w) => w.id === id);
+  const hasContent = (wi) => !!(CONTENT[wi] && CONTENT[wi].length);
   const STATES = ['idle', 'prep', 'run', 'accel', 'jump', 'collect', 'shield', 'teleport', 'hurt', 'win', 'fail'];
   const ST = {}; STATES.forEach((s, i) => (ST[s] = i));
   // n = nombre d'images de course dans la planche ; rar = rareté affichée en boutique
@@ -41,17 +33,17 @@
   const SKINS = [
     { id: 'classic', name: 'Classique', desc: 'Le Milo d’origine, lanterne à la main', price: 0, rar: 'c', n: 7, trail: { a: '#e9dcff', b: '#a77cff', p: '#ffffff', kind: 'spark' } },
     { id: 'pastel', name: 'Pastel', desc: 'Douceur lavande et boucle cristal', price: 300, rar: 'c', n: 7, trail: { a: '#f1e6ff', b: '#c08bff', p: '#ffe9a8', kind: 'spark' } },
-    { id: 'neon', name: 'Néon', desc: 'Contours bleu électrique', price: 350, world: 0, rar: 'c', n: 8, trail: { a: '#7af6ff', b: '#a855f7', p: '#5ef2ff', kind: 'bolt' } },
+    { id: 'neon', name: 'Néon', desc: 'Contours bleu électrique', price: 350, world: 'ruines', rar: 'c', n: 8, trail: { a: '#7af6ff', b: '#a855f7', p: '#5ef2ff', kind: 'bolt' } },
     { id: 'aurora', name: 'Aurore', desc: 'Une aurore boréale sur la tête', price: 450, rar: 'c', n: 7, trail: { a: '#8ff7e0', b: '#6a5cff', p: '#c9fff4', kind: 'spark' } },
-    { id: 'glacier', name: 'Glacier', desc: 'Taillé dans la glace', price: 600, world: 1, rar: 'r', n: 8, trail: { a: '#e3f6ff', b: '#6cc6ff', p: '#ffffff', kind: 'snow' } },
+    { id: 'glacier', name: 'Glacier', desc: 'Taillé dans la glace', price: 600, world: 'cyber', rar: 'r', n: 8, trail: { a: '#e3f6ff', b: '#6cc6ff', p: '#ffffff', kind: 'snow' } },
     { id: 'polar', name: 'Polaire', desc: 'Lunettes de ski et doudoune', price: 700, rar: 'r', n: 7, trail: { a: '#eaf6ff', b: '#5aa8ff', p: '#ffffff', kind: 'snow' } },
     { id: 'pumpkin', name: 'Citrouille', desc: 'La citrouille la plus mignonne', price: 750, rar: 'r', n: 7, trail: { a: '#ffc46b', b: '#ff7a1a', p: '#b06cff', kind: 'ember' } },
     { id: 'cyber', name: 'Cyber', desc: 'Casque à cœur et veste lumineuse', price: 850, rar: 'r', n: 6, trail: { a: '#ff8fd8', b: '#35e0ff', p: '#ffffff', kind: 'bolt' } },
-    { id: 'galaxy', name: 'Galaxie', desc: 'Violet cosmique et anneau planétaire', price: 900, world: 2, rar: 'r', n: 8, trail: { a: '#e8b8ff', b: '#7b2cff', p: '#fff3b0', kind: 'star' } },
+    { id: 'galaxy', name: 'Galaxie', desc: 'Violet cosmique et anneau planétaire', price: 900, world: 'cosmos', rar: 'r', n: 8, trail: { a: '#e8b8ff', b: '#7b2cff', p: '#fff3b0', kind: 'star' } },
     { id: 'explorer', name: 'Explorateur', desc: 'Chapeau, boussole et lanterne', price: 1100, rar: 'e', n: 7, trail: { a: '#ffe1a1', b: '#c2873f', p: '#ffd36b', kind: 'ember' } },
     { id: 'ninja', name: 'Ninja', desc: 'Bandeau, sabre et écharpe rouge', price: 1200, stars: 24, rar: 'e', n: 7, trail: { a: '#ff6b6b', b: '#5a2a6a', p: '#ffffff', kind: 'spark' } },
     { id: 'wizard', name: 'Sorcier', desc: 'Chapeau étoilé et bâton magique', price: 1250, rar: 'e', n: 7, trail: { a: '#e7b8ff', b: '#8a3cff', p: '#ffe066', kind: 'star' } },
-    { id: 'sun', name: 'Soleil', desc: 'Chemise à fleurs et lunettes de soleil', price: 1300, world: 3, rar: 'e', n: 8, trail: { a: '#fff1a8', b: '#ff8a1f', p: '#ffd84d', kind: 'ember' } },
+    { id: 'sun', name: 'Soleil', desc: 'Chemise à fleurs et lunettes de soleil', price: 1300, world: 'sables', rar: 'e', n: 8, trail: { a: '#fff1a8', b: '#ff8a1f', p: '#ffd84d', kind: 'ember' } },
     { id: 'party', name: 'Fête', desc: 'Casque DJ et lunettes à LED', price: 1400, rar: 'e', n: 7, trail: { a: '#ff7ae0', b: '#5ef2ff', p: '#ffe066', kind: 'star' } },
     { id: 'samurai', name: 'Samouraï', desc: 'Armure rouge et casque doré', price: 1800, stars: 64, rar: 'l', n: 7, trail: { a: '#ffd166', b: '#e0283b', p: '#ffffff', kind: 'ember' } },
     { id: 'astro', name: 'Astronaute', desc: 'Combinaison spatiale et réacteur', price: 2000, stars: 40, rar: 'l', n: 7, trail: { a: '#bfe8ff', b: '#7b6cff', p: '#ffffff', kind: 'star' } },
@@ -89,8 +81,27 @@
     swipe: '<path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"/><path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4" opacity=".35"/>', check: '<path d="M20 6 9 17l-5-5"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', next: '<path d="m9 18 6-6-6-6"/>'
   };
   const ico = (n, c) => IC[n] ? `<svg class="gi ${c || ''}" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>` : MG.icon(n, c);
-  const lvKey = (wi, li) => wi + '-' + li;
-  const levelAt = (wi, li) => LV[wi] && LV[wi].levels[li];
+  // clé PERMANENTE d'un niveau : "idDuMonde:index" (ex. "ruines:3")
+  const lvKey = (wi, li) => WORLDS[wi].id + ':' + li;
+  const levelAt = (wi, li) => CONTENT[wi] && CONTENT[wi][li];
+  // Sauvegarde v1 ("numéroDuMonde-niveau") → v2 ("id:niveau"), sans rien perdre.
+  // Idempotente : si un ancien appareil réécrit l'ancien format, ses résultats sont refusionnés (meilleurs scores gardés).
+  // Copie de secours de la v1 conservée dans d.bak.v1.
+  function migrate(d) {
+    if (!d) return d; const lv = d.lv || (d.lv = {}), old = Object.keys(lv).filter((k) => /^\d+-\d+$/.test(k));
+    if (old.length) {
+      d.bak = d.bak || {};
+      if (!d.bak.v1) { d.bak.v1 = { at: Date.now(), lv: {} }; old.forEach((k) => (d.bak.v1.lv[k] = Object.assign({}, lv[k]))); }
+      old.forEach((k) => {
+        const [w, l] = k.split('-').map(Number), W = WORLDS.find((x) => x.oldIdx === w); if (!W) return;
+        const nk = W.id + ':' + l, a = lv[nk] || {}, b = lv[k] || {};
+        lv[nk] = { stars: Math.max(a.stars || 0, b.stars || 0), best: Math.max(a.best || 0, b.best || 0), time: a.time && b.time ? Math.min(a.time, b.time) : a.time || b.time || 0, done: (a.done || 0) + (b.done || 0) };
+        delete lv[k];
+      });
+    }
+    if (typeof d.last === 'string' && /^\d+-\d+$/.test(d.last)) { const [w, l] = d.last.split('-').map(Number), W = WORLDS.find((x) => x.oldIdx === w); d.last = W ? W.id + ':' + l : null; }
+    d.v = 2; return d;
+  }
 
   /* =====================================================================
      ÉTAT
@@ -235,7 +246,7 @@
     g.timed.forEach((t) => { if (seen.has(t)) return; const grp = [t], q = [t]; seen.add(t); while (q.length) { const a = q.pop(); g.timed.forEach((b) => { if (!seen.has(b) && b.c === a.c && Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1) { seen.add(b); grp.push(b); q.push(b); } }); } const ph = hash(t.x, t.y, 3); grp.forEach((b) => (b.ph = ph)); });
     g.ents = L.ents.map((e, i) => Object.assign({ i, ex: e.a[0], ey: e.a[1], alive: true, home: e.a.slice(), tx: e.a[0], ty: e.a[1], fx: e.a[0], fy: e.a[1], k: 0, chase: false, eyes: 0, on: false }, JSON.parse(JSON.stringify(e))));
     // torches / décor animé
-    if (wi === 0 || wi === 3) for (let y = 1; y < H - 1; y++) for (let x = 0; x < W; x++) if (grid[y][x] === '#' && grid[y + 1] && grid[y + 1][x] !== '#' && grid[y + 1][x] !== undefined) { const h = hash(x, y, 5); if (h < 0.12) g.torches.push({ x, y, h }); }
+    if (WORLDS[wi].deco === 'vine' || WORLDS[wi].deco === 'sun') for (let y = 1; y < H - 1; y++) for (let x = 0; x < W; x++) if (grid[y][x] === '#' && grid[y + 1] && grid[y + 1][x] !== '#' && grid[y + 1][x] !== undefined) { const h = hash(x, y, 5); if (h < 0.12) g.torches.push({ x, y, h }); }
     g.startY = g.milo.y; g.milo.px = g.milo.x; g.milo.py = g.milo.y; g.milo.lpx = g.milo.px; g.milo.lpy = g.milo.py;
     g.cam = clamp(g.milo.y + 0.5 - viewRows() * 0.62, 0, Math.max(0, H - viewRows())); g.camT = g.cam;
     const u = data().upg || {};
@@ -306,7 +317,7 @@
     sfx('coin', G.coinStreak % 12); fxCoin(x + 0.5, y + 0.5); bumpHud('coins');
   }
   function pickBonus(c, x, y) {
-    const b = BONUS[c], m = G.milo; G.grid[y][x] = ' ';
+    const b = BONUS[c], m = G.milo; G.grid[y][x] = ' '; G.bonusUsed = true;
     if (b.id === 'shield') G.bon.shield = true;
     else if (b.id === 'tele') G.bon.tele++;
     else G.bon[b.id] = b.dur * G.bonusDur;
@@ -576,7 +587,7 @@
     c.imageSmoothingEnabled = true;
     // torches
     G.torches.forEach((tc) => { if (tc.y < r0 - 1 || tc.y > r1) return; const x = tc.x * cs + cs / 2, y = (tc.y + 1) * cs - cs * 0.15, f = 0.8 + Math.sin(now * 12 + tc.h * 40) * 0.15 + Math.sin(now * 7.3 + tc.h * 9) * 0.1;
-      const rg = c.createRadialGradient(x, y, 0, x, y, cs * 1.4); rg.addColorStop(0, hexA(G.wi === 3 ? '#ffb340' : '#ffa53d', 0.32 * f)); rg.addColorStop(1, 'rgba(255,150,40,0)'); c.fillStyle = rg; c.fillRect(x - cs * 1.4, y - cs * 1.4, cs * 2.8, cs * 2.8);
+      const rg = c.createRadialGradient(x, y, 0, x, y, cs * 1.4); rg.addColorStop(0, hexA(WORLDS[G.wi].deco === 'sun' ? '#ffb340' : '#ffa53d', 0.32 * f)); rg.addColorStop(1, 'rgba(255,150,40,0)'); c.fillStyle = rg; c.fillRect(x - cs * 1.4, y - cs * 1.4, cs * 2.8, cs * 2.8);
       c.fillStyle = '#ffd36b'; c.fillRect(x - cs * 0.07, y - cs * 0.28 * f, cs * 0.14, cs * 0.24 * f); c.fillStyle = '#fff4c2'; c.fillRect(x - cs * 0.035, y - cs * 0.18 * f, cs * 0.07, cs * 0.12 * f); c.fillStyle = '#6b3a14'; c.fillRect(x - cs * 0.06, y - cs * 0.04, cs * 0.12, cs * 0.16); });
     // cases spéciales
     for (let y = r0; y < r1; y++) for (let x = 0; x < G.W; x++) {
@@ -663,7 +674,7 @@
     c.strokeStyle = col; c.lineWidth = cs * 0.07; for (let i = 0; i < 3; i++) { c.beginPath(); c.arc(x, y, cs * (0.18 + i * 0.1), now * (3 + i) + i * 2, now * (3 + i) + i * 2 + 3.6); c.stroke(); }
   }
   function drawEnt(c, e, now) {
-    const cs = UI.cs, x = (e.fx + 0.5) * cs, y = (e.fy + 0.5) * cs, wi = G.wi;
+    const cs = UI.cs, x = (e.fx + 0.5) * cs, y = (e.fy + 0.5) * cs, wi = WORLDS[G.wi].pxi || 0; // palette des ennemis
     if (e.t === 'laser') {
       const hor = laserHor(e), x0 = Math.min(e.a[0], e.b[0]) * cs, x1 = (Math.max(e.a[0], e.b[0]) + 1) * cs, y0 = Math.min(e.a[1], e.b[1]) * cs, y1 = (Math.max(e.a[1], e.b[1]) + 1) * cs;
       c.fillStyle = '#3a2a5a';
@@ -786,11 +797,12 @@
       <div class="mz-hud">
         <div class="mz-row"><button class="gclose" data-mz="pause" aria-label="Pause">${MG.icon('pause')}</button>
           <div class="mz-pill mz-coins"><i class="mz-ic coin"></i><b data-h="coins">0</b><span data-h="ctot">/0</span></div>
-          <div class="mz-stars" data-h="stars"><i title="Sortie"></i><i title="Pièces"></i><i title="Chrono"></i></div>
+          <div class="mz-stars" data-h="stars">${objLabels(G).map((t) => `<i title="${t}"></i>`).join('')}</div>
           <div class="mz-pill mz-time">${ico('clock')}<b data-h="time">0:00</b></div></div>
         <div class="mz-prog"><i data-h="prog"></i><span>${(G.li + 1)} · ${WORLDS[G.wi].short}</span></div>
         <div class="mz-bons" data-h="bons"></div>
       </div>
+      <div class="mz-obj" data-h="obj"><small>Objectifs</small>${objLabels(G).map((t) => `<span>${MG.icon('star')}${t}</span>`).join('')}</div>
       <div class="mz-hint" data-h="hint"><div class="mz-hand"></div><b>Glisse ton doigt</b><span>Milo fonce jusqu’au prochain mur</span></div>
     </div>`;
   }
@@ -812,11 +824,11 @@
     if (H.coins && H.coins._v !== G.got) { H.coins._v = G.got; H.coins.textContent = G.got; }
     if (H.time) { const v = fmtT(G.time).replace(/\.\d$/, ''); if (H.time._v !== v) { H.time._v = v; H.time.textContent = v; H.time.parentNode.classList.toggle('late', G.time > G.L.par); } }
     if (H.prog) { const k = clamp((G.startY - G.milo.py) / Math.max(1, G.startY - G.exit[1]), 0, 1); H.prog.style.width = Math.round(k * 100) + '%'; }
-    if (H.stars) { const s = H.stars.children, need = Math.ceil(G.coinsTotal * 0.7); s[0].className = G.state === 'win' ? 'on' : ''; s[1].className = G.got >= need ? 'on' : ''; s[2].className = G.time <= G.L.par ? 'on soft' : 'off'; }
+    if (H.stars) { const s = H.stars.children; s[0].className = G.state === 'win' ? 'on' : ''; s[1].className = objCls(G, 1); s[2].className = objCls(G, 2); }
     ['magnet', 'speed', 'slow'].forEach((k) => {}); if (G.bon.magnet > 0 || G.bon.speed > 0 || G.bon.slow > 0) { const t = Math.ceil(G.bon.magnet) + ':' + Math.ceil(G.bon.speed) + ':' + Math.ceil(G.bon.slow); if (t !== UI.bonT) { UI.bonT = t; hud(); } }
   }
   function bumpHud(k) { const el = UI.hudEls[k]; if (!el) return; el.textContent = G.got; el._v = G.got; const p = el.parentNode; p.classList.remove('bump'); void p.offsetWidth; p.classList.add('bump'); }
-  function hideHint() { const h = UI.hudEls.hint; if (h) h.classList.add('out'); }
+  function hideHint() { const h = UI.hudEls.hint; if (h) h.classList.add('out'); const o = UI.hudEls.obj; if (o) setTimeout(() => o.classList.add('out'), 700); }
 
   /* =====================================================================
      DÉMARRAGE / FIN DE NIVEAU
@@ -831,6 +843,7 @@
     UI.hudEls = {}; root.querySelectorAll('[data-h]').forEach((e) => (UI.hudEls[e.dataset.h] = e));
     if (!(settings().hints && (wi === 0 && li < 2 || !data().seenTuto))) UI.hudEls.hint.classList.add('out');
     layout(); hud(); startLoop();
+    clearTimeout(UI.objT); UI.objT = setTimeout(() => { const o = UI.hudEls.obj; if (o) o.classList.add('out'); }, 4200);
     const s = data().stats; s.runs = (s.runs || 0) + 1; data().last = lvKey(wi, li); api.save();
     Music.start(wi);
   }
@@ -843,7 +856,20 @@
     if (cs !== UI.cs || UI.chunkLv !== G.L || UI.chunkDpr !== d || UI.chunkLow !== UI.lowfx) { UI.cs = cs; UI.chunkLv = G.L; UI.chunkDpr = d; UI.chunkLow = UI.lowfx; buildChunks(); }
     UI.vig = null;
   }
-  function starsOf(g) { const s1 = 1, s2 = g.got >= Math.ceil(g.coinsTotal * 0.7) ? 1 : 0, s3 = g.time <= g.L.par ? 1 : 0; return [s1, s2, s3]; }
+  // ---- objectifs : 1re étoile = sortie, 2e = objectif secondaire, 3e = performance (L.obj = [secondaire, performance])
+  // keep : objectif « à conserver » (acquis au départ, perdu en cours de route) ; sinon objectif « à atteindre »
+  const OBJ = {
+    coins: { lbl: (g, o) => `${Math.ceil(g.coinsTotal * (o.p || 0.7))} pièces`, ok: (g, o) => g.got >= Math.ceil(g.coinsTotal * (o.p || 0.7)) },
+    allcoins: { lbl: () => 'Toutes les pièces', ok: (g) => g.got >= g.coinsTotal },
+    time: { lbl: (g, o) => `Moins de ${Math.round(o.s || g.L.par)} s`, ok: (g, o) => g.time <= (o.s || g.L.par), keep: true },
+    nohit: { lbl: () => 'Sans prendre de coup', ok: (g) => g.hits === 0, keep: true },
+    nobonus: { lbl: () => 'Sans ramasser de bonus', ok: (g) => !g.bonusUsed, keep: true }
+  };
+  const objOf = (L) => (L.obj && L.obj.length === 2 ? L.obj : [{ t: 'coins', p: 0.7 }, { t: 'time' }]);
+  const objLabels = (g) => ['Sortie'].concat(objOf(g.L).map((o) => (OBJ[o.t] ? OBJ[o.t].lbl(g, o) : '—')));
+  const objOk = (g, k) => { const o = objOf(g.L)[k - 1], O = o && OBJ[o.t]; return O ? O.ok(g, o) : false; };
+  const objCls = (g, k) => { const o = objOf(g.L)[k - 1], O = OBJ[o.t] || {}, ok = objOk(g, k); return O.keep ? (ok ? 'on soft' : 'off') : ok ? 'on' : ''; };
+  function starsOf(g) { return [1, objOk(g, 1) ? 1 : 0, objOk(g, 2) ? 1 : 0]; }
   function scoreOf(g, st) { const n = st.reduce((a, b) => a + b, 0); return g.got * 10 + n * 150 + Math.max(0, Math.round((g.L.par * 1.6 - g.time) * 12)) + (g.hits === 0 ? 100 : 0); }
   function endLevel(won) {
     if (!G) return;
@@ -856,16 +882,41 @@
       d.lv[key] = { stars: Math.max(rec.stars || 0, n), best: Math.max(rec.best || 0, score), time: rec.time ? Math.min(rec.time, +G.time.toFixed(1)) : +G.time.toFixed(1), done: (rec.done || 0) + 1 };
       s.wins = (s.wins || 0) + 1;
       // skins débloqués en terminant un monde ou en réunissant des étoiles
-      SKINS.forEach((sk) => { if ((d.owned || {})[sk.id]) return; if ((sk.world != null && worldDone(sk.world)) || (sk.stars && totalStars() >= sk.stars)) { (d.owned = d.owned || { classic: true })[sk.id] = true; unlocks.push(sk); } });
+      SKINS.forEach((sk) => { if ((d.owned || {})[sk.id]) return; if ((sk.world && worldDone(sk.world)) || (sk.stars && totalStars() >= sk.stars)) { (d.owned = d.owned || { classic: true })[sk.id] = true; unlocks.push(sk); } });
     }
     api.save(); Music.target = 0;
     showEnd(won, st, score, rec.best || 0, newBest, unlocks);
   }
-  function worldDone(wi) { const d = data(); return LV[wi] && LV[wi].levels.every((_, li) => ((d.lv || {})[lvKey(wi, li)] || {}).stars > 0); }
-  function totalStars() { const d = data(); let n = 0; Object.values(d.lv || {}).forEach((r) => (n += r.stars || 0)); return n; }
+  // ---- progression par mondes (les mondes sans niveaux sont « bientôt » et ne bloquent pas la suite)
+  const done = (wi, li) => ((((data().lv || {})[lvKey(wi, li)] || {}).stars) || 0) > 0;
+  function worldDone(w) { const wi = typeof w === 'string' ? wIdx(w) : w; return hasContent(wi) && CONTENT[wi].every((_, li) => done(wi, li)); }
+  function prevContent(wi) { for (let k = wi - 1; k >= 0; k--) if (hasContent(k)) return k; return -1; }
+  function worldOpen(wi) {
+    if (!hasContent(wi)) return false; const p = prevContent(wi); if (p < 0) return true;
+    if (CONTENT[wi].some((_, li) => done(wi, li))) return true; // progression déjà commencée : jamais reverrouillée
+    return done(p, CONTENT[p].length - 1);
+  }
+  function unlocked(wi, li) { return worldOpen(wi) && (li === 0 || done(wi, li - 1) || done(wi, li)); }
+  function nextOf(wi, li) { if (li + 1 < CONTENT[wi].length) return [wi, li + 1]; for (let k = wi + 1; k < WORLDS.length; k++) if (hasContent(k)) return [k, 0]; return null; }
+  function worldStars(wi) { let n = 0; (CONTENT[wi] || []).forEach((_, li) => (n += ((data().lv || {})[lvKey(wi, li)] || {}).stars || 0)); return n; }
+  const worldDoneN = (wi) => (CONTENT[wi] || []).filter((_, li) => done(wi, li)).length;
+  // complétion : niveaux terminés + étoiles (les collections s'ajouteront ici)
+  function worldPct(wi) { const n = (CONTENT[wi] || []).length; return n ? Math.round(((worldDoneN(wi) + worldStars(wi)) / (n * 4)) * 100) : 0; }
+  function globalPct() { let a = 0, m = 0; CONTENT.forEach((c, wi) => { a += worldDoneN(wi) + worldStars(wi); m += c.length * 4; }); return m ? Math.round((a / m) * 100) : 0; }
+  const maxStars = () => CONTENT.reduce((n, c) => n + c.length * 3, 0);
+  function totalStars() { let n = 0; CONTENT.forEach((c, wi) => (n += worldStars(wi))); return n; }
   function totalScore() { const d = data(); let n = 0; Object.values(d.lv || {}).forEach((r) => (n += r.best || 0)); return n; }
-  function unlocked(wi, li) { if (wi === 0 && li === 0) return true; const d = data(); const prev = li > 0 ? lvKey(wi, li - 1) : lvKey(wi - 1, LV[wi - 1].levels.length - 1); return ((d.lv || {})[prev] || {}).stars > 0; }
-  function nextOf(wi, li) { if (li + 1 < LV[wi].levels.length) return [wi, li + 1]; if (wi + 1 < LV.length) return [wi + 1, 0]; return null; }
+  // prochaine récompense la plus proche (skins liés à un monde ou à des étoiles)
+  function nextReward() {
+    const own = data().owned || {}, tot = totalStars(); let best = null;
+    SKINS.forEach((s) => {
+      if (own[s.id]) return; let c = null;
+      if (s.world) { const wi = wIdx(s.world); if (hasContent(wi)) { const n = CONTENT[wi].length, dn = worldDoneN(wi); c = { sk: s, txt: `Termine ${WORLDS[wi].name}`, k: `${dn}/${n}`, left: (n - dn) * 3 }; } }
+      if (s.stars && s.stars <= maxStars()) { const left = s.stars - tot; if (left > 0 && (!c || left < c.left)) c = { sk: s, txt: `Réunis ${s.stars} étoiles`, k: `${tot}/${s.stars}`, left }; }
+      if (c && (!best || c.left < best.left)) best = c;
+    });
+    return best;
+  }
 
   /* =====================================================================
      ÉCRANS
@@ -888,20 +939,29 @@
       el.innerHTML = `${topbar(null)}<div class="mz-in mz-homein">
         <img class="mz-logo" src="${MG.asset('logo_maze.webp')}" alt="Milo Maze" draggable="false">
         <div class="mz-stage">${spriteBox(sk, 'idle', 'mz-hero')}<i class="mz-plat"></i></div>
-        <div class="mz-best"><span>${MG.icon('crown')}Meilleur score</span><b>${MG.fmt(totalScore())}</b><span class="mz-sub">${totalStars()} / ${LV.length * 18} ${MG.icon('star')}</span></div>
+        <div class="mz-best"><span>${MG.icon('crown')}Meilleur score</span><b>${MG.fmt(totalScore())}</b><span class="mz-sub">${totalStars()} / ${maxStars()} ${MG.icon('star')}</span></div>
         <button class="gbtn mz-play" data-mz="map">${MG.icon('play')}Jouer</button>
         <div class="mz-menu"><button data-mz="skins"><span>${ico('skins')}</span>Personnages</button><button data-mz="shop"><span>${ico('shop')}</span>Boutique</button><button data-mz="settings"><span>${MG.icon('gear')}</span>Paramètres</button></div>
       </div>`;
     } else if (name === 'map') {
-      el.innerHTML = `${topbar('home')}<div class="mz-in"><h2 class="mz-h">Carte des niveaux<span>${totalStars()} / ${LV.length * 18} ${MG.icon('star')}</span></h2>
-        ${LV.map((w, wi) => { const W = WORLDS[wi], ws = w.levels.reduce((n, _, li) => n + (((d.lv || {})[lvKey(wi, li)] || {}).stars || 0), 0), open = unlocked(wi, 0);
-          return `<section class="mz-world${open ? '' : ' locked'}" style="--e:${W.pal.edge};--g:${W.pal.glow};--w:${W.pal.wall}"><header><b>Monde ${wi + 1}</b><span>${W.name}</span><em>${ws}/18 ${MG.icon('star')}</em></header>
-            <div class="mz-lvgrid">${w.levels.map((L, li) => { const r = (d.lv || {})[lvKey(wi, li)] || {}, op = unlocked(wi, li);
-              return `<button class="mz-lv${op ? '' : ' locked'}${r.stars ? ' done' : ''}" ${op ? `data-mz="play" data-w="${wi}" data-l="${li}"` : 'disabled'}><b>${op ? li + 1 : MG.icon('lock')}</b>
-                <span class="mz-ls">${[0, 1, 2].map((k) => `<i class="${k < (r.stars || 0) ? 'on' : ''}">${MG.icon('star')}</i>`).join('')}</span><small>${r.best ? MG.fmt(r.best) : op ? 'À jouer' : '—'}</small></button>`; }).join('')}</div></section>`; }).join('')}</div>`;
+      migrate(d); const nr = nextReward(), gp = globalPct();
+      el.innerHTML = `${topbar('home')}<div class="mz-in"><h2 class="mz-h">Carte des mondes<span>${totalStars()} / ${maxStars()} ${MG.icon('star')}</span></h2>
+        <div class="mz-glob"><div class="mz-bar"><i style="width:${gp}%"></i></div><span>${gp} % de l’aventure</span></div>
+        ${nr ? `<div class="mz-next">${spriteBox(nr.sk.id, 'idle')}<div><small>Prochaine récompense</small><b>${nr.sk.name}</b><span>${nr.txt}</span></div><em>${nr.k}</em></div>` : ''}
+        <div class="mz-wlist">${WORLDS.map((W, wi) => worldCard(W, wi)).join('')}</div></div>`;
+    } else if (name === 'world') {
+      migrate(d); const wi = opt && opt.wi != null ? opt.wi : UI.curWorld || 0, W = WORLDS[wi], lv = CONTENT[wi]; UI.curWorld = wi;
+      el.style.cssText = `--e:${W.pal.edge};--g:${W.pal.glow};--w:${W.pal.wall}`;
+      el.innerHTML = `${topbar('map')}<div class="mz-in">
+        <div class="mz-whead" style="background-image:url(${worldArt(wi)})"><i class="mz-wemb"><svg viewBox="0 0 24 24">${W.icon}</svg></i><small>Monde ${wi + 1} · <span class="mz-tier t-${W.tier}">${TIERS[W.tier]}</span></small><b>${W.name}</b><span>${W.blurb}</span></div>
+        <div class="mz-wstats"><div><b>${worldPct(wi)} %</b><span>terminé</span></div><div><b>${worldStars(wi)}/${lv.length * 3}</b><span>étoiles</span></div><div><b>${worldDoneN(wi)}/${lv.length}</b><span>niveaux</span></div></div>
+        <section class="mz-world"><div class="mz-lvgrid">${lv.map((L, li) => { const r = (d.lv || {})[lvKey(wi, li)] || {}, op = unlocked(wi, li);
+          return `<button class="mz-lv${op ? '' : ' locked'}${r.stars ? ' done' : ''}" ${op ? `data-mz="play" data-w="${wi}" data-l="${li}"` : 'disabled'}><b>${op ? li + 1 : MG.icon('lock')}</b>
+            <span class="mz-ls">${[0, 1, 2].map((k) => `<i class="${k < (r.stars || 0) ? 'on' : ''}">${MG.icon('star')}</i>`).join('')}</span><small>${r.best ? MG.fmt(r.best) : op ? 'À jouer' : '—'}</small></button>`; }).join('')}</div></section>
+        <p class="mz-wsoon">${MG.icon('lock')}<span>Bientôt dans ce monde : de nouveaux niveaux, des défis, un niveau secret et le boss <b>${W.boss}</b>.</span></p></div>`;
     } else if (name === 'skins' || name === 'shop') {
       const owned = Object.assign({ classic: true }, d.owned || {}), sel = d.skin || 'classic', u = d.upg || {};
-      const skinCards = SKINS.map((s) => { const own = owned[s.id], cond = s.world != null ? `ou termine le monde ${s.world + 1}` : s.stars ? `ou réunis ${s.stars} étoiles` : '';
+      const skinCards = SKINS.map((s) => { const own = owned[s.id], cond = s.world ? `ou termine le monde ${wIdx(s.world) + 1}` : s.stars ? `ou réunis ${s.stars} étoiles` : '';
         return `<div class="mz-skin${own ? '' : ' locked'}${s.id === sel ? ' sel' : ''}" data-skin="${s.id}"><span class="mz-rar r-${s.rar}">${RAR[s.rar]}</span>${spriteBox(s.id, 'idle', own ? '' : 'sil')}<b>${s.name}</b><em>${s.desc}</em>
           ${own ? (s.id === sel ? `<span class="mz-tag">${ico('check')}Choisi</span>` : `<button class="gbtn light sm" data-mz="pick" data-id="${s.id}">Choisir</button>`) : `<button class="gbtn sm" data-mz="buy" data-id="${s.id}"><i class="mz-ic coin"></i>${MG.fmt(s.price)}</button><small>${cond}</small>`}</div>`; }).join('');
       if (name === 'skins') el.innerHTML = `${topbar('home')}<div class="mz-in"><h2 class="mz-h">Personnages</h2>
@@ -921,6 +981,50 @@
       const b0 = root.querySelector('.mz-big'); if (b0) { b0.style.backgroundImage = `url(${MG.asset('maze/mk_' + sk.id + '.webp')})`; b0.style.backgroundSize = `${(sk.n + 2) * 100}% 100%`; b0.style.backgroundPosition = '0 0'; }
       UI.skinTimer = setInterval(() => { const b = root && root.querySelector('.mz-big'); if (!b) return; i = (i + 1) % seq.length; b.style.backgroundPosition = `${(seq[i] / (sk.n + 1)) * 100}% 0`; }, 85);
     }
+  }
+  function worldCard(W, wi) {
+    const has = hasContent(wi), open = worldOpen(wi), fin = has && worldDone(wi), pct = has ? worldPct(wi) : 0, n = (CONTENT[wi] || []).length, p = prevContent(wi);
+    const st = !has ? ['soon', 'Bientôt'] : !open ? ['lock', 'Verrouillé'] : fin ? ['done', 'Terminé'] : pct > 0 ? ['go', 'En cours'] : ['new', 'Débloqué'];
+    const desc = !has ? `En préparation · ${W.mech.slice(0, 2).join(', ').toLowerCase()}…` : !open ? `Termine ${WORLDS[p].name} pour entrer` : W.blurb;
+    const rew = SKINS.filter((s) => s.world === W.id), own = data().owned || {};
+    return `<button class="mz-wcard st-${st[0]}" data-mz="${open ? 'openworld' : 'wlocked'}" data-w="${wi}" style="--e:${W.pal.edge};--g:${W.pal.glow};--w:${W.pal.wall}">
+      <span class="mz-wart" style="background-image:url(${worldArt(wi)})"><span class="mz-wst">${st[0] === 'lock' || st[0] === 'soon' ? MG.icon('lock') : st[0] === 'done' ? ico('check') : ''}${st[1]}</span><i class="mz-wemb"><svg viewBox="0 0 24 24">${W.icon}</svg></i></span>
+      <span class="mz-wbody"><span class="mz-wtop"><small>Monde ${wi + 1}</small><span class="mz-tier t-${W.tier}">${TIERS[W.tier]}</span></span>
+        <b class="mz-wname">${W.name}</b><span class="mz-wdesc">${desc}</span>
+        ${has ? `<span class="mz-wprog"><span class="mz-bar"><i style="width:${pct}%"></i></span><em>${pct} %</em><em>${worldStars(wi)}/${n * 3} ${MG.icon('star')}</em></span>` : ''}
+        <span class="mz-wrew">${rew.map((s) => `<span class="mz-rw${own[s.id] ? ' own' : ''}" title="${s.name}">${spriteBox(s.id, 'idle', own[s.id] ? '' : 'sil')}</span>`).join('')}<small>${rew.length ? (rew.every((s) => own[s.id]) ? 'Récompense obtenue · ' : 'Récompense : ' + rew.map((s) => s.name).join(', ') + ' · ') : ''}Boss : ${W.boss}</small></span></span></button>`;
+  }
+  // illustration pixel art générée à partir de la palette du monde (remplaçable par W.art)
+  function worldArt(wi) {
+    UI.art = UI.art || {}; if (UI.art[wi]) return UI.art[wi];
+    const W = WORLDS[wi]; if (W.art) return (UI.art[wi] = MG.asset(W.art));
+    const p = W.pal, TW = 40, TH = 14, S = 8, c2 = document.createElement('canvas'); c2.width = TW * S; c2.height = TH * S; const x = c2.getContext('2d');
+    const gr = x.createLinearGradient(0, 0, 0, c2.height); gr.addColorStop(0, p.bg1); gr.addColorStop(1, p.bg2); x.fillStyle = gr; x.fillRect(0, 0, c2.width, c2.height);
+    const open = new Set(), K = (a, b) => a + ',' + b; let yy = 7, y2 = 3;
+    for (let cx = 0; cx < TW; cx++) {
+      open.add(K(cx, yy)); if (cx > 4 && cx < TW - 6) open.add(K(cx, y2));
+      if (cx % 4 === 2 && hash(cx, wi, 7) < 0.6) { const ny = Math.max(5, Math.min(TH - 3, yy + (hash(cx, wi, 8) < 0.5 ? -2 : 2))); for (let k = Math.min(yy, ny); k <= Math.max(yy, ny); k++) open.add(K(cx, k)); yy = ny; }
+      if (cx % 7 === 3) for (let k = Math.min(yy, y2); k <= Math.max(yy, y2); k++) open.add(K(cx, k));
+    }
+    for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+      const X = tx * S, Y = ty * S, h = hash(tx, ty, wi + 31);
+      if (open.has(K(tx, ty))) { x.fillStyle = (tx + ty) % 2 ? p.floor : p.floor2; x.fillRect(X, Y, S, S); if (h < 0.18) { x.fillStyle = p.accent; x.fillRect(X + 3, Y + 3, 2, 2); } continue; }
+      x.fillStyle = h < 0.5 ? p.wall : p.wall2; x.fillRect(X, Y, S, S); x.fillStyle = p.deep; x.fillRect(X, Y + S - 1, S, 1); x.fillRect(X + S - 1, Y, 1, S);
+      x.fillStyle = hexA(p.edge, 0.85);
+      if (open.has(K(tx, ty + 1))) x.fillRect(X, Y + S - 2, S, 2); if (open.has(K(tx, ty - 1))) x.fillRect(X, Y, S, 1);
+      if (open.has(K(tx + 1, ty))) x.fillRect(X + S - 1, Y, 1, S); if (open.has(K(tx - 1, ty))) x.fillRect(X, Y, 1, S);
+      if (h > 0.93) { x.fillStyle = p.mote; x.fillRect(X + 2, Y + 2, 2, 2); }
+    }
+    const v = x.createRadialGradient(c2.width * 0.35, c2.height * 0.5, 10, c2.width * 0.5, c2.height * 0.5, c2.width * 0.6); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.55)'); x.fillStyle = v; x.fillRect(0, 0, c2.width, c2.height);
+    return (UI.art[wi] = c2.toDataURL('image/png'));
+  }
+  // transition animée vers un monde (puis cb)
+  function worldTrans(wi, cb) {
+    const W = WORLDS[wi], el = document.createElement('div'); el.className = 'mz-wtrans';
+    el.style.cssText = `--e:${W.pal.edge};--g:${W.pal.glow};--b1:${W.pal.bg1};--b2:${W.pal.bg2}`;
+    el.innerHTML = `<div class="mz-wt-in"><i class="mz-wemb"><svg viewBox="0 0 24 24">${W.icon}</svg></i><small>Monde ${wi + 1}</small><b>${W.name}</b><span class="mz-tier t-${W.tier}">${TIERS[W.tier]}</span></div>`;
+    root.appendChild(el); sfx('portal');
+    setTimeout(() => { if (root) cb(); }, 560); setTimeout(() => el.classList.add('out'), 980); setTimeout(() => el.remove(), 1400);
   }
   function settingsHTML(s) {
     return `<div class="mz-set">
@@ -951,7 +1055,7 @@
   function showEnd(won, st, score, prevBest, newBest, unlocks) {
     const g = G, d = data(), nx = nextOf(g.wi, g.li), n = st.reduce((a, b) => a + b, 0), best = Math.max(prevBest, won ? score : 0);
     const stars = [0, 1, 2].map((k) => `<i class="${st[k] ? 'on' : ''}" style="animation-delay:${0.25 + k * 0.3}s">${MG.icon('star')}</i>`).join('');
-    const lbl = ['Sortie', `${Math.ceil(g.coinsTotal * 0.7)} pièces`, `Moins de ${Math.round(g.L.par)} s`];
+    const lbl = objLabels(g);
     const m = modal(`<div class="gpanel mz-panel ${won ? 'win' : 'lose'}"><div class="mz-pmilo">${spriteBox(d.skin || 'classic', won ? 'win' : 'fail')}</div>
       <h3>${won ? (n === 3 ? 'Parfait !' : 'Niveau terminé !') : 'Oups !'}</h3><p>${won ? `Niveau ${g.li + 1} · ${WORLDS[g.wi].short}` : (g.why || 'Milo s’est fait surprendre') + ' Réessaie !'}</p>
       <div class="mz-endstars">${stars}</div><div class="mz-endlbl">${lbl.map((t, k) => `<span class="${st[k] ? 'on' : ''}">${t}</span>`).join('')}</div>
@@ -960,7 +1064,7 @@
       <p class="mz-earn"><i class="mz-ic coin"></i>+${g.got} pièces · total ${MG.fmt(d.coins || 0)}</p>
       <div class="acts">${won && nx ? `<button class="gbtn" data-mz="play" data-w="${nx[0]}" data-l="${nx[1]}">${ico('next')}Niveau suivant</button>` : ''}
         <button class="gbtn ${won && nx ? 'light' : ''}" data-mz="restart">${MG.icon('redo')}${won ? 'Rejouer' : 'Recommencer'}</button>
-        <button class="gbtn light" data-mz="map">${ico('map')}Carte</button></div></div>`);
+        <button class="gbtn light" data-mz="world" data-w="${g.wi}">${ico('map')}Niveaux</button></div></div>`);
     const b = m.querySelector('[data-count]'), t0 = performance.now(); const step = (t) => { const k = Math.min(1, (t - t0) / 900); b.textContent = MG.fmt(Math.round(score * ease(k))); if (k < 1 && root) UI.scoreRaf = requestAnimationFrame(step); }; UI.scoreRaf = requestAnimationFrame(step);
     if (won) st.forEach((v, k) => { if (v) setTimeout(() => sfx('star', k), 250 + k * 300); });
   }
@@ -997,10 +1101,13 @@
     if (a === 'pause') pause();
     else if (a === 'resume') resume();
     else if (a === 'restart') { const g = G; if (g) startLevel(g.wi, g.li); else if (UI.lastLv) startLevel(...UI.lastLv); }
-    else if (a === 'quit') { Music.stop(); screen('map'); }
+    else if (a === 'quit') { Music.stop(); const wi = G ? G.wi : UI.curWorld || 0; screen('world', { wi }); }
     else if (a === 'psettings') { const m = modal(`<div class="gpanel mz-panel mz-psets"><h3>Paramètres</h3>${settingsHTML(settings())}<div class="acts"><button class="gbtn" data-mz="pauseback">${ico('back')}Retour</button></div></div>`); }
     else if (a === 'pauseback') { closeModal(); G.paused = false; pause(); }
-    else if (a === 'play') { const wi = +b.dataset.w, li = +b.dataset.l; UI.lastLv = [wi, li]; if (unlocked(wi, li)) startLevel(wi, li); }
+    else if (a === 'play') { const wi = +b.dataset.w, li = +b.dataset.l; UI.lastLv = [wi, li]; if (!unlocked(wi, li)) return; if (G && G.wi !== wi) worldTrans(wi, () => startLevel(wi, li)); else startLevel(wi, li); }
+    else if (a === 'openworld') { const wi = +b.dataset.w; worldTrans(wi, () => screen('world', { wi })); }
+    else if (a === 'world') { screen('world', { wi: +b.dataset.w }); }
+    else if (a === 'wlocked') { const wi = +b.dataset.w, p = prevContent(wi); sfx('no'); toast(hasContent(wi) ? `Termine d’abord ${WORLDS[p].name}` : `${WORLDS[wi].name} arrive bientôt`); }
     else if (a === 'map' || a === 'home' || a === 'skins' || a === 'shop' || a === 'settings') screen(a);
     else if (a === 'pick') { d.skin = b.dataset.id; skinImg(d.skin); api.save(); screen(UI.screen); }
     else if (a === 'buy') {
@@ -1025,7 +1132,7 @@
   MG.register({
     id: 'maze', name: 'Milo Maze', logo: 'logo_maze.webp', theme: 'maze',
     mount(frame, a) {
-      api = a; const d = api.data; d.stats = d.stats || {}; d.owned = Object.assign({ classic: true }, d.owned || {}); d.upg = d.upg || {}; d.lv = d.lv || {};
+      api = a; const d = migrate(api.data); d.stats = d.stats || {}; d.owned = Object.assign({ classic: true }, d.owned || {}); d.upg = d.upg || {}; d.lv = d.lv || {};
       if (d.coins == null) d.coins = 0; if (!skinById(d.skin).id || !d.owned[d.skin]) d.skin = 'classic';
       UI.lowfx = !!settings().lowfx;
       skinImg(d.skin); itemsImg();
@@ -1046,14 +1153,15 @@
       if (api) api.save(); root = null; cv = null; ctx = null; G = null; UI.chunks = []; UI.ptr = null;
     },
     card(d) {
-      let stars = 0, best = 0; Object.values(d.lv || {}).forEach((r) => { stars += r.stars || 0; best += r.best || 0; });
+      migrate(d); let stars = 0, best = 0; Object.values(d.lv || {}).forEach((r) => { stars += r.stars || 0; best += r.best || 0; });
+      const mx = maxStars(), nl = CONTENT.reduce((n, c) => n + c.length, 0), nd = Object.values(d.lv || {}).filter((r) => r.stars > 0).length;
       return { desc: 'Milo explore des labyrinthes néon : glisse pour foncer d’un mur à l’autre, ramasse les pièces et évite les pièges.',
-        stats: [['Étoiles', `${stars}/${LV.length * 18}`, 'star'], ['Pièces', MG.fmt(d.coins || 0), 'crown'], ['Score', MG.fmt(best), 'trophy']],
-        progress: stars / (LV.length * 18 || 1), progressLabel: `${Object.keys(d.lv || {}).length} niveau${Object.keys(d.lv || {}).length > 1 ? 'x' : ''} terminé${Object.keys(d.lv || {}).length > 1 ? 's' : ''} sur ${LV.length * 6}`,
-        cta: Object.keys(d.lv || {}).length ? 'Continuer l’aventure' : 'Jouer' };
+        stats: [['Étoiles', `${stars}/${mx}`, 'star'], ['Pièces', MG.fmt(d.coins || 0), 'crown'], ['Score', MG.fmt(best), 'trophy']],
+        progress: stars / (mx || 1), progressLabel: `${nd} niveau${nd > 1 ? 'x' : ''} terminé${nd > 1 ? 's' : ''} sur ${nl}`,
+        cta: nd ? 'Continuer l’aventure' : 'Jouer' };
     },
-    homeLine(d) { let s = 0; Object.values(d.lv || {}).forEach((r) => (s += r.stars || 0)); return `Milo Maze ${s} étoiles`; },
-    _debug: { G: () => G, UI, launch, start: (w, l) => startLevel(w, l), screen, LV, WORLDS, setInv: (v) => { if (G) G.milo.invT = v ? 1e9 : 0; }, hitAt: (x, y) => hitAt(x, y, G.time) }
+    homeLine(d) { migrate(d); let s = 0; Object.values(d.lv || {}).forEach((r) => (s += r.stars || 0)); return `Milo Maze ${s} étoiles`; },
+    _debug: { G: () => G, UI, launch, start: (w, l) => startLevel(w, l), screen, LV, WORLDS, CONTENT, migrate, worldOpen, unlocked, nextReward, worldPct, setInv: (v) => { if (G) G.milo.invT = v ? 1e9 : 0; }, hitAt: (x, y) => hitAt(x, y, G.time) }
   });
 
   /* =====================================================================
@@ -1129,6 +1237,55 @@
   .mz-world header span{grid-row:2;font-size:17px;font-weight:900}
   .mz-world header em{grid-row:1/3;grid-column:2;align-self:center;display:flex;align-items:center;gap:3px;font-style:normal;font-weight:900;font-size:14px}.mz-world header em .gi{width:15px;height:15px;fill:#ffcf3a;stroke:#e19c00}
   .mz-world.locked{opacity:.55;filter:saturate(.5)}
+  /* carte des mondes */
+  .mz-glob{display:flex;align-items:center;gap:10px;margin:-6px 2px 12px;font-size:12.5px;font-weight:800;color:#cbbcff}.mz-glob .mz-bar{flex:1}
+  .mz-bar{display:block;height:8px;border-radius:6px;background:rgba(255,255,255,.12);overflow:hidden}.mz-bar i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--g,#a970ff),var(--e,#5ef2ff));box-shadow:0 0 10px var(--g,#a970ff)}
+  .mz-next{display:flex;align-items:center;gap:10px;padding:8px 14px 8px 8px;margin-bottom:14px;border-radius:20px;background:linear-gradient(120deg,rgba(255,200,60,.16),rgba(169,112,255,.12));box-shadow:inset 0 0 0 1px rgba(255,215,77,.35)}
+  .mz-next .mz-spr{width:54px;height:54px}.mz-next div{flex:1;min-width:0;display:flex;flex-direction:column}
+  .mz-next small{font-size:10.5px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#ffd96a}.mz-next b{font-size:16px;font-weight:900}.mz-next span{font-size:12.5px;color:#d8ccff}
+  .mz-next em{font-style:normal;font-weight:900;font-size:14px;color:#ffd96a;font-variant-numeric:tabular-nums}
+  .mz-wlist{display:flex;flex-direction:column;gap:14px}
+  .mz-wcard{display:block;width:100%;border:0;padding:0;text-align:left;font:inherit;color:#fff;border-radius:24px;overflow:hidden;background:linear-gradient(170deg,color-mix(in srgb,var(--w) 40%,#0a0520),#0a0520 70%);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--e) 45%,transparent),0 10px 24px rgba(0,0,0,.35);transition:transform .15s}
+  .mz-wcard:active{transform:scale(.98)}
+  .mz-wart{position:relative;display:block;height:112px;background-size:cover;background-position:center;image-rendering:pixelated}
+  .mz-wemb{position:absolute;right:14px;top:50%;transform:translateY(-50%);width:62px;height:62px;border-radius:20px;display:grid;place-items:center;background:radial-gradient(circle,color-mix(in srgb,var(--g) 45%,transparent),rgba(10,5,30,.55));box-shadow:0 0 22px var(--g),inset 0 0 0 1.5px var(--e)}
+  .mz-wemb svg{width:34px;height:34px;fill:none;stroke:#fff;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 6px var(--e))}
+  .mz-wst{position:absolute;left:12px;top:12px;display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:12px;font-size:11px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;background:rgba(10,5,30,.72);box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}.mz-wst .gi{width:13px;height:13px}
+  .st-done .mz-wst{background:rgba(40,160,100,.85)}.st-go .mz-wst{background:color-mix(in srgb,var(--g) 70%,#0a0520)}.st-new .mz-wst{background:rgba(255,190,40,.9);color:#2a1400}
+  .st-lock .mz-wart,.st-soon .mz-wart{filter:grayscale(.75) brightness(.6)}.st-lock .mz-wemb,.st-soon .mz-wemb{box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.3)}
+  .mz-wbody{display:flex;flex-direction:column;gap:3px;padding:10px 14px 13px}
+  .mz-wtop{display:flex;align-items:center;justify-content:space-between}.mz-wtop small{font-size:11px;font-weight:900;letter-spacing:1px;text-transform:uppercase;color:var(--e)}
+  .mz-tier{display:inline-block;padding:3px 9px;border-radius:9px;font-size:10.5px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;color:#fff}
+  .t-facile{background:#1fa86a}.t-normal{background:#2f7bff}.t-difficile{background:#ff8a1f}.t-expert{background:#e0283b}.t-legendaire{background:linear-gradient(135deg,#ffb020,#b04cff)}
+  .mz-wname{font-size:19px;font-weight:900;line-height:1.15}.mz-wdesc{font-size:12.5px;color:#cbbcff}
+  .mz-wprog{display:flex;align-items:center;gap:10px;margin-top:6px}.mz-wprog .mz-bar{flex:1}
+  .mz-wprog em{display:inline-flex;align-items:center;gap:3px;font-style:normal;font-weight:900;font-size:13px;font-variant-numeric:tabular-nums}.mz-wprog .gi{width:14px;height:14px;fill:#ffcf3a;stroke:#e19c00}
+  .mz-wrew{display:flex;align-items:center;gap:6px;margin-top:6px}.mz-wrew small{font-size:11.5px;color:#a99cf0;font-weight:700}
+  .mz-rw .mz-spr{width:34px;height:34px}.mz-rw .mz-spr.sil{filter:brightness(0) drop-shadow(0 0 1px rgba(255,255,255,.6));opacity:.8}
+  /* écran d'un monde */
+  .mz-whead{position:relative;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;min-height:150px;padding:14px 92px 14px 16px;border-radius:24px;margin-bottom:12px;background-size:cover;background-position:center;image-rendering:pixelated;box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--e) 50%,transparent),inset 0 -70px 60px -20px rgba(5,2,15,.85)}
+  .mz-whead small{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:900;letter-spacing:1px;text-transform:uppercase;color:var(--e)}
+  .mz-whead b{font-size:24px;font-weight:900;line-height:1.1;text-shadow:0 2px 12px rgba(0,0,0,.6)}.mz-whead > span{font-size:13px;color:#e3d8ff}
+  .mz-wstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+  .mz-wstats div{display:flex;flex-direction:column;align-items:center;padding:9px 4px;border-radius:16px;background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+  .mz-wstats b{font-size:18px;font-weight:900;font-variant-numeric:tabular-nums}.mz-wstats span{font-size:11px;color:#cbbcff;font-weight:800}
+  .mz-wsoon{display:flex;gap:8px;align-items:flex-start;margin:4px 4px 0;font-size:12.5px;color:#b9a8ff;line-height:1.4}.mz-wsoon .gi{flex:none;width:15px;height:15px;margin-top:1px}
+  /* transition entre mondes */
+  .mz-wtrans{position:absolute;inset:0;z-index:70;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,color-mix(in srgb,var(--g) 55%,var(--b1)),var(--b2) 75%);animation:mzWtIn .45s cubic-bezier(.22,1,.36,1) both;pointer-events:all}
+  .mz-wtrans.out{animation:mzWtOut .4s ease-in both}
+  .mz-wt-in{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;animation:mzWtPop .7s cubic-bezier(.34,1.56,.64,1) both}
+  .mz-wt-in .mz-wemb{position:static;transform:none;width:96px;height:96px;border-radius:30px;margin-bottom:8px}.mz-wt-in .mz-wemb svg{width:54px;height:54px}
+  .mz-wt-in small{font-size:13px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:var(--e)}.mz-wt-in b{font-size:28px;font-weight:900;padding:0 24px;text-shadow:0 0 24px var(--g)}
+  @keyframes mzWtIn{from{opacity:0;clip-path:circle(0% at 50% 50%)}to{opacity:1;clip-path:circle(75% at 50% 50%)}}
+  @keyframes mzWtOut{to{opacity:0}}
+  @keyframes mzWtPop{from{opacity:0;transform:scale(.7) translateY(16px)}to{opacity:1;transform:none}}
+  /* objectifs au départ d'un niveau */
+  .mz-obj{position:absolute;left:50%;top:124px;transform:translateX(-50%);z-index:3;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 12px;width:max-content;max-width:calc(100% - 24px);padding:8px 14px;border-radius:16px;background:rgba(20,10,50,.82);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),0 8px 22px rgba(0,0,0,.4);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:opacity .4s,transform .4s;pointer-events:none}
+  .mz-obj small{display:none}
+  .mz-obj span{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:800;white-space:nowrap}.mz-obj .gi{width:14px;height:14px;fill:#ffcf3a;stroke:#e19c00}
+  .mz-obj.out{opacity:0;transform:translate(-50%,-10px)}
+  .mz-obj:not(.out) ~ .mz-hint{top:176px}
+  @media (prefers-reduced-motion:reduce){.mz-wtrans,.mz-wt-in{animation-duration:.01s}}
   .mz-lvgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
   .mz-lv{border:0;border-radius:16px;padding:10px 4px 8px;background:rgba(10,5,30,.55);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--e) 45%,transparent);color:#fff;font:inherit;display:flex;flex-direction:column;align-items:center;gap:3px;transition:transform .15s}
   .mz-lv:active{transform:scale(.95)}

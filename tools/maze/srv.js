@@ -1,0 +1,2 @@
+const http = require('http'), fs = require('fs'), path = require('path');
+module.exports = (port) => http.createServer((q, r) => { let f = path.join('/home/claude/milo-app/public', decodeURIComponent(q.url.split('?')[0])); if (f.endsWith('/')) f += 'index.html'; fs.readFile(f, (e, d) => { if (e) { r.writeHead(404); r.end(); return; } r.writeHead(200, { 'Content-Type': { '.html': 'text/html', '.js': 'text/javascript', '.webp': 'image/webp', '.png': 'image/png' }[path.extname(f)] || 'application/octet-stream' }); r.end(d); }); }).listen(port);
